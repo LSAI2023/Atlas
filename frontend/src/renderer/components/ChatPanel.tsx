@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { message, Dropdown, Collapse } from 'antd'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { message, Dropdown, Avatar } from 'antd'
 import {
   PlusOutlined,
   GlobalOutlined,
@@ -8,11 +8,15 @@ import {
   AudioOutlined,
   ArrowUpOutlined,
   RobotOutlined,
+  UserOutlined,
   DownOutlined,
   StopOutlined,
   CheckOutlined,
-  ThunderboltOutlined,
+  RedoOutlined,
 } from '@ant-design/icons'
+import { Bubble, Think, Actions } from '@ant-design/x'
+import type { BubbleItemType } from '@ant-design/x'
+import XMarkdown from '@ant-design/x-markdown'
 import { useConversationStore } from '../stores/conversationStore'
 import { useDocumentStore } from '../stores/documentStore'
 import { chatApi, modelsApi, Message, OllamaModel } from '../services/api'
@@ -29,7 +33,6 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   const [models, setModels] = useState<OllamaModel[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
 
   const { messages, addMessage, createConversation } = useConversationStore()
@@ -43,10 +46,6 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
       // Ollama not available, keep empty
     })
   }, [])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent, streamingReasoning])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -158,41 +157,32 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
     }
   }
 
-  const renderReasoning = (reasoning: string, isStreaming: boolean) => {
-    if (!reasoning) return null
-    return (
-      <Collapse
-        size="small"
-        className="reasoning-collapse"
-        defaultActiveKey={isStreaming ? ['1'] : []}
-        items={[{
-          key: '1',
-          label: (
-            <span className="reasoning-label">
-              <ThunderboltOutlined />
-              <span>思考过程</span>
-              {isStreaming && <span className="reasoning-streaming">思考中...</span>}
-            </span>
-          ),
-          children: (
-            <div className="reasoning-content">{reasoning}</div>
-          ),
-        }]}
-      />
-    )
-  }
+  const allMessages = useMemo(() => {
+    const msgs = [...messages]
+    if (streamingContent || streamingReasoning) {
+      msgs.push({
+        id: 'streaming',
+        conversation_id: conversationId || '',
+        role: 'assistant',
+        content: streamingContent,
+        reasoning: streamingReasoning,
+        created_at: new Date().toISOString(),
+      })
+    }
+    return msgs
+  }, [messages, streamingContent, streamingReasoning, conversationId])
 
-  const allMessages = [...messages]
-  if (streamingContent || streamingReasoning) {
-    allMessages.push({
-      id: 'streaming',
-      conversation_id: conversationId || '',
-      role: 'assistant',
-      content: streamingContent,
-      reasoning: streamingReasoning,
-      created_at: new Date().toISOString(),
-    })
-  }
+  const bubbleItems: BubbleItemType[] = useMemo(() => {
+    return allMessages.map((msg) => ({
+      key: msg.id,
+      role: msg.role === 'user' ? 'user' : 'ai',
+      content: msg.content,
+      extraInfo: {
+        reasoning: msg.reasoning,
+        isStreaming: msg.id === 'streaming',
+      },
+    }))
+  }, [allMessages])
 
   const modelMenuItems = models.map((m) => ({
     key: m.name,
@@ -239,32 +229,73 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
           </div>
         ) : (
           <div className="chat-messages">
-            {allMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`message ${msg.role === 'user' ? 'message-user' : 'message-assistant'}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="message-avatar">
-                    <RobotOutlined />
-                  </div>
-                )}
-                <div className="message-content">
-                  {msg.role === 'assistant' && renderReasoning(
-                    msg.reasoning || '',
-                    msg.id === 'streaming'
-                  )}
-                  {msg.content}
-                  {msg.id === 'streaming' && !msg.content && msg.reasoning && (
-                    <span className="typing-cursor" />
-                  )}
-                  {msg.id === 'streaming' && msg.content && (
-                    <span className="typing-cursor" />
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+            <Bubble.List
+              autoScroll
+              items={bubbleItems}
+              role={{
+                user: {
+                  placement: 'end',
+                  avatar: <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />,
+                  variant: 'filled',
+                  shape: 'round',
+                  styles: {
+                    content: { background: '#1890ff', color: '#fff' },
+                  },
+                },
+                ai: {
+                  placement: 'start',
+                  avatar: <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#52c41a' }} />,
+                  contentRender: (content, info) => {
+                    const reasoning = info.extraInfo?.reasoning
+                    const isStreaming = info.extraInfo?.isStreaming
+                    return (
+                      <>
+                        {reasoning && (
+                          <Think
+                            title="思考过程"
+                            loading={isStreaming && !content}
+                            defaultExpanded={isStreaming}
+                            style={{ marginBottom: content ? 8 : 0 }}
+                          >
+                            {reasoning}
+                          </Think>
+                        )}
+                        {content && (
+                          <XMarkdown
+                            content={content as string}
+                            streaming={isStreaming ? {
+                              hasNextChunk: true,
+                              enableAnimation: true,
+                            } : undefined}
+                          />
+                        )}
+                      </>
+                    )
+                  },
+                  footer: (content) => {
+                    if (!content) return null
+                    return (
+                      <Actions
+                        items={[
+                          {
+                            key: 'copy',
+                            label: '复制',
+                            actionRender: () => (
+                              <Actions.Copy text={content as string} />
+                            ),
+                          },
+                          {
+                            key: 'retry',
+                            icon: <RedoOutlined />,
+                            label: '重试',
+                          },
+                        ]}
+                      />
+                    )
+                  },
+                },
+              }}
+            />
           </div>
         )}
       </div>
@@ -317,22 +348,6 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
-        }
-        .typing-cursor {
-          display: inline-block;
-          width: 2px;
-          height: 16px;
-          background: #000;
-          margin-left: 2px;
-          vertical-align: text-bottom;
-          animation: blink 1s infinite;
-        }
-      `}</style>
     </div>
   )
 }
