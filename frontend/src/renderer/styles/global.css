@@ -82,26 +82,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* New Chat Button */
-.new-chat-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  margin: 0 4px 8px;
-  border-radius: 10px;
-  background: #efefef;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-  transition: background 0.15s;
-}
-
-.new-chat-btn:hover {
-  background: #e5e5e5;
-}
+/* New Chat Button - handled by Conversations creation prop */
 
 .sidebar-section {
   margin-bottom: 4px;
@@ -114,40 +95,13 @@ body {
   font-weight: 500;
 }
 
-.conversation-item {
-  padding: 10px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background 0.15s;
-  color: #333;
+/* Conversations component overrides */
+.sidebar-content .ant-conversations {
+  border: none;
 }
 
-.conversation-item:hover {
-  background: #ebebeb;
-}
-
-.conversation-item.active {
-  background: #e5e5e5;
-}
-
-.conversation-item-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.conversation-item-actions {
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.conversation-item:hover .conversation-item-actions {
-  opacity: 1;
+.sidebar-content .ant-conversations-list {
+  padding: 0;
 }
 
 .sidebar-footer {

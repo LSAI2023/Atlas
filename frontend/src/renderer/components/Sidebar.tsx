@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react'
-import { Input, message, Popconfirm } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Input, message } from 'antd'
 import {
   SearchOutlined,
-  PlusOutlined,
-  MessageOutlined,
   DeleteOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
+import { Conversations } from '@ant-design/x'
+import type { ConversationsProps } from '@ant-design/x'
+import type { GetProp } from 'antd'
 import { useConversationStore } from '../stores/conversationStore'
 
 interface SidebarProps {
   onNewChat: () => void
   onOpenSettings: () => void
 }
+
+type ConversationItem = GetProp<ConversationsProps, 'items'>[number]
 
 function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
   const [searchText, setSearchText] = useState('')
@@ -39,50 +42,52 @@ function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
     }
   }
 
-  const filteredConversations = conversations.filter((c) =>
-    c.title.toLowerCase().includes(searchText.toLowerCase())
-  )
-
-  // Group conversations by time period
-  const groupConversations = () => {
+  const getTimeGroup = (dateStr: string): string => {
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterdayStart = new Date(todayStart.getTime() - 86400000)
     const sevenDaysAgo = new Date(todayStart.getTime() - 7 * 86400000)
     const thirtyDaysAgo = new Date(todayStart.getTime() - 30 * 86400000)
 
-    const groups: { label: string; items: typeof filteredConversations }[] = []
-    const today: typeof filteredConversations = []
-    const yesterday: typeof filteredConversations = []
-    const sevenDays: typeof filteredConversations = []
-    const thirtyDays: typeof filteredConversations = []
-    const older: typeof filteredConversations = []
-
-    for (const conv of filteredConversations) {
-      const date = new Date(conv.updated_at || conv.created_at)
-      if (date >= todayStart) {
-        today.push(conv)
-      } else if (date >= yesterdayStart) {
-        yesterday.push(conv)
-      } else if (date >= sevenDaysAgo) {
-        sevenDays.push(conv)
-      } else if (date >= thirtyDaysAgo) {
-        thirtyDays.push(conv)
-      } else {
-        older.push(conv)
-      }
-    }
-
-    if (today.length) groups.push({ label: '今天', items: today })
-    if (yesterday.length) groups.push({ label: '昨天', items: yesterday })
-    if (sevenDays.length) groups.push({ label: '7 天内', items: sevenDays })
-    if (thirtyDays.length) groups.push({ label: '30 天内', items: thirtyDays })
-    if (older.length) groups.push({ label: '更早', items: older })
-
-    return groups
+    const date = new Date(dateStr)
+    if (date >= todayStart) return '今天'
+    if (date >= yesterdayStart) return '昨天'
+    if (date >= sevenDaysAgo) return '7 天内'
+    if (date >= thirtyDaysAgo) return '30 天内'
+    return '更早'
   }
 
-  const groups = groupConversations()
+  const groupOrder = ['今天', '昨天', '7 天内', '30 天内', '更早']
+
+  const items: ConversationItem[] = useMemo(() => {
+    const filtered = conversations.filter((c) =>
+      c.title.toLowerCase().includes(searchText.toLowerCase())
+    )
+    const mapped = filtered.map((conv) => ({
+      key: conv.id,
+      label: conv.title,
+      group: getTimeGroup(conv.updated_at || conv.created_at),
+    }))
+    // Sort by group order so Conversations component renders groups in correct sequence
+    mapped.sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group))
+    return mapped
+  }, [conversations, searchText])
+
+  const menuConfig: ConversationsProps['menu'] = (conversation) => ({
+    items: [
+      {
+        key: 'delete',
+        label: '删除',
+        icon: <DeleteOutlined />,
+        danger: true,
+      },
+    ],
+    onClick: ({ key }) => {
+      if (key === 'delete') {
+        deleteConversation(conversation.key as string)
+      }
+    },
+  })
 
   return (
     <div className="sidebar">
@@ -99,46 +104,23 @@ function Sidebar({ onNewChat, onOpenSettings }: SidebarProps) {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Conversations List */}
       <div className="sidebar-content">
-        {/* New Chat Button */}
-        <div className="new-chat-btn" onClick={handleNewChat}>
-          <PlusOutlined />
-          <span>开启新对话</span>
-        </div>
-
-        {/* Grouped Conversations List */}
-        {groups.map((group) => (
-          <div key={group.label} className="sidebar-section">
-            <div className="sidebar-section-title">{group.label}</div>
-            {group.items.map((conv) => (
-              <div
-                key={conv.id}
-                className={`conversation-item ${currentConversationId === conv.id ? 'active' : ''}`}
-                onClick={() => selectConversation(conv.id)}
-              >
-                <span className="conversation-item-title">{conv.title}</span>
-                <div className="conversation-item-actions">
-                  <Popconfirm
-                    title="删除对话"
-                    description="确定要删除这个对话吗？"
-                    onConfirm={(e) => {
-                      e?.stopPropagation()
-                      deleteConversation(conv.id)
-                    }}
-                    okText="删除"
-                    cancelText="取消"
-                  >
-                    <DeleteOutlined
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ color: '#999' }}
-                    />
-                  </Popconfirm>
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
+        <Conversations
+          items={items}
+          activeKey={currentConversationId || undefined}
+          onActiveChange={(key) => selectConversation(key)}
+          menu={menuConfig}
+          groupable
+          creation={{
+            onClick: handleNewChat,
+            label: '开启新对话',
+          }}
+          style={{
+            background: 'transparent',
+            height: '100%',
+          }}
+        />
       </div>
 
       {/* Footer - Settings button */}
