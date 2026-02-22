@@ -4,7 +4,78 @@ from typing import Optional, List
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Document, Conversation, Message
+from app.models import KnowledgeBase, Document, Conversation, Message
+
+
+# KnowledgeBase CRUD
+async def create_knowledge_base(
+    session: AsyncSession,
+    name: str,
+    description: str = "",
+) -> KnowledgeBase:
+    kb = KnowledgeBase(
+        id=str(uuid.uuid4()),
+        name=name,
+        description=description,
+    )
+    session.add(kb)
+    await session.commit()
+    await session.refresh(kb)
+    return kb
+
+
+async def get_knowledge_base(session: AsyncSession, kb_id: str) -> Optional[KnowledgeBase]:
+    result = await session.execute(select(KnowledgeBase).where(KnowledgeBase.id == kb_id))
+    return result.scalar_one_or_none()
+
+
+async def get_all_knowledge_bases(session: AsyncSession) -> List[KnowledgeBase]:
+    result = await session.execute(select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc()))
+    return list(result.scalars().all())
+
+
+async def update_knowledge_base(
+    session: AsyncSession,
+    kb_id: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+) -> Optional[KnowledgeBase]:
+    kb = await get_knowledge_base(session, kb_id)
+    if kb:
+        if name is not None:
+            kb.name = name
+        if description is not None:
+            kb.description = description
+        kb.updated_at = datetime.utcnow()
+        await session.commit()
+        await session.refresh(kb)
+    return kb
+
+
+async def delete_knowledge_base(session: AsyncSession, kb_id: str) -> bool:
+    kb = await get_knowledge_base(session, kb_id)
+    if kb:
+        await session.delete(kb)
+        await session.commit()
+        return True
+    return False
+
+
+async def get_knowledge_base_documents(session: AsyncSession, kb_id: str) -> List[Document]:
+    result = await session.execute(
+        select(Document).where(Document.knowledge_base_id == kb_id).order_by(Document.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_document_ids_for_knowledge_bases(
+    session: AsyncSession, kb_ids: List[str]
+) -> List[str]:
+    """Resolve knowledge base IDs to document IDs."""
+    result = await session.execute(
+        select(Document.id).where(Document.knowledge_base_id.in_(kb_ids))
+    )
+    return list(result.scalars().all())
 
 
 # Document CRUD
@@ -13,6 +84,7 @@ async def create_document(
     filename: str,
     file_type: str,
     file_size: int,
+    knowledge_base_id: str,
     chunk_count: int = 0,
 ) -> Document:
     doc = Document(
@@ -20,6 +92,7 @@ async def create_document(
         filename=filename,
         file_type=file_type,
         file_size=file_size,
+        knowledge_base_id=knowledge_base_id,
         chunk_count=chunk_count,
     )
     session.add(doc)
@@ -33,8 +106,13 @@ async def get_document(session: AsyncSession, doc_id: str) -> Optional[Document]
     return result.scalar_one_or_none()
 
 
-async def get_all_documents(session: AsyncSession) -> List[Document]:
-    result = await session.execute(select(Document).order_by(Document.created_at.desc()))
+async def get_all_documents(
+    session: AsyncSession, knowledge_base_id: Optional[str] = None
+) -> List[Document]:
+    query = select(Document).order_by(Document.created_at.desc())
+    if knowledge_base_id:
+        query = query.where(Document.knowledge_base_id == knowledge_base_id)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 
