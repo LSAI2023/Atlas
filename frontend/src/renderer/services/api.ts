@@ -2,12 +2,25 @@ import axios from 'axios'
 
 const API_BASE = '/api'
 
+export interface KnowledgeBase {
+  id: string
+  name: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeBaseDetail extends KnowledgeBase {
+  documents: Document[]
+}
+
 export interface Document {
   id: string
   filename: string
   file_type: string
   file_size: number
   chunk_count: number
+  knowledge_base_id: string
   created_at: string
 }
 
@@ -44,7 +57,7 @@ export interface Message {
 export interface ChatRequest {
   message: string
   conversation_id?: string
-  document_ids?: string[]
+  knowledge_base_ids?: string[]
   model?: string
 }
 
@@ -54,19 +67,48 @@ export interface OllamaModel {
   modified_at: string | null
 }
 
+// Knowledge Base API
+export const knowledgeBaseApi = {
+  create: async (name: string, description: string = ''): Promise<KnowledgeBase> => {
+    const response = await axios.post(`${API_BASE}/knowledge-bases`, { name, description })
+    return response.data
+  },
+
+  list: async (): Promise<{ knowledge_bases: KnowledgeBase[] }> => {
+    const response = await axios.get(`${API_BASE}/knowledge-bases`)
+    return response.data
+  },
+
+  get: async (id: string): Promise<KnowledgeBaseDetail> => {
+    const response = await axios.get(`${API_BASE}/knowledge-bases/${id}`)
+    return response.data
+  },
+
+  update: async (id: string, data: { name?: string; description?: string }): Promise<KnowledgeBase> => {
+    const response = await axios.put(`${API_BASE}/knowledge-bases/${id}`, data)
+    return response.data
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await axios.delete(`${API_BASE}/knowledge-bases/${id}`)
+  },
+}
+
 // Document API
 export const documentApi = {
-  upload: async (file: File): Promise<Document> => {
+  upload: async (file: File, knowledgeBaseId: string): Promise<Document> => {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('knowledge_base_id', knowledgeBaseId)
     const response = await axios.post(`${API_BASE}/documents/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data
   },
 
-  list: async (): Promise<{ documents: Document[] }> => {
-    const response = await axios.get(`${API_BASE}/documents`)
+  list: async (knowledgeBaseId?: string): Promise<{ documents: Document[] }> => {
+    const params = knowledgeBaseId ? { knowledge_base_id: knowledgeBaseId } : {}
+    const response = await axios.get(`${API_BASE}/documents`, { params })
     return response.data
   },
 

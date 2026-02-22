@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db.database import init_db
-from app.api import chat, documents, history
+from app.api import chat, documents, history, knowledge_bases
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(knowledge_bases.router, prefix="/api/knowledge-bases", tags=["knowledge-bases"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(history.router, prefix="/api/history", tags=["history"])

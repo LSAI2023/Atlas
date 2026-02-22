@@ -18,7 +18,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
-    document_ids: Optional[List[str]] = None
+    knowledge_base_ids: Optional[List[str]] = None
     model: Optional[str] = None
 
 
@@ -104,12 +104,21 @@ async def chat(
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
+    # Resolve knowledge base IDs to document IDs
+    document_ids = None
+    if request.knowledge_base_ids:
+        document_ids = await crud.get_document_ids_for_knowledge_bases(
+            session, request.knowledge_base_ids
+        )
+        if not document_ids:
+            document_ids = None
+
     return StreamingResponse(
         generate_sse_stream(
             query=request.message,
             conversation_id=conversation_id,
             session=session,
-            document_ids=request.document_ids,
+            document_ids=document_ids,
             model=request.model,
         ),
         media_type="text/event-stream",

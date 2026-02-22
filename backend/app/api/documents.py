@@ -1,8 +1,9 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
@@ -17,9 +18,15 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
+    knowledge_base_id: str = Form(...),
     session: AsyncSession = Depends(get_session),
 ):
-    """Upload and index a document."""
+    """Upload and index a document into a knowledge base."""
+    # Verify knowledge base exists
+    kb = await crud.get_knowledge_base(session, knowledge_base_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge base not found")
+
     # Validate file type
     filename = file.filename or "unknown"
     file_ext = Path(filename).suffix.lower()
@@ -54,6 +61,7 @@ async def upload_document(
             filename=filename,
             file_type=file_type,
             file_size=file_size,
+            knowledge_base_id=knowledge_base_id,
             chunk_count=0,
         )
 
@@ -85,6 +93,7 @@ async def upload_document(
             "file_type": doc.file_type,
             "file_size": doc.file_size,
             "chunk_count": len(chunks),
+            "knowledge_base_id": knowledge_base_id,
             "message": f"Document uploaded and indexed successfully with {len(chunks)} chunks",
         }
 
@@ -101,9 +110,12 @@ async def upload_document(
 
 
 @router.get("")
-async def list_documents(session: AsyncSession = Depends(get_session)):
-    """Get list of all documents."""
-    documents = await crud.get_all_documents(session)
+async def list_documents(
+    knowledge_base_id: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get list of documents, optionally filtered by knowledge base."""
+    documents = await crud.get_all_documents(session, knowledge_base_id=knowledge_base_id)
     return {"documents": [doc.to_dict() for doc in documents]}
 
 

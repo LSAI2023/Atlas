@@ -1,24 +1,17 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { message, Dropdown, Avatar } from 'antd'
+import { message, Dropdown, Avatar, Tag } from 'antd'
 import {
-  PlusOutlined,
-  GlobalOutlined,
-  ScissorOutlined,
-  FontSizeOutlined,
-  AudioOutlined,
-  ArrowUpOutlined,
   RobotOutlined,
   UserOutlined,
   DownOutlined,
-  StopOutlined,
   CheckOutlined,
-  RedoOutlined,
+  BookOutlined,
 } from '@ant-design/icons'
-import { Bubble, Think, Actions } from '@ant-design/x'
+import { Bubble, Think, Actions, Sender } from '@ant-design/x'
 import type { BubbleItemType } from '@ant-design/x'
 import XMarkdown from '@ant-design/x-markdown'
 import { useConversationStore } from '../stores/conversationStore'
-import { useDocumentStore } from '../stores/documentStore'
+import { useKnowledgeBaseStore } from '../stores/knowledgeBaseStore'
 import { chatApi, modelsApi, Message, OllamaModel } from '../services/api'
 
 interface ChatPanelProps {
@@ -32,31 +25,31 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   const [streamingReasoning, setStreamingReasoning] = useState('')
   const [models, setModels] = useState<OllamaModel[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [kbDropdownOpen, setKbDropdownOpen] = useState(false)
   const abortRef = useRef<(() => void) | null>(null)
 
   const { messages, addMessage, createConversation } = useConversationStore()
-  const { selectedDocumentIds } = useDocumentStore()
+  const {
+    knowledgeBases,
+    selectedKnowledgeBaseIds,
+    fetchKnowledgeBases,
+    toggleKnowledgeBaseSelection,
+  } = useKnowledgeBaseStore()
 
   useEffect(() => {
     modelsApi.list().then((data) => {
       setModels(data.models)
       setSelectedModel(data.default)
-    }).catch(() => {
-      // Ollama not available, keep empty
-    })
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }
-  }, [inputValue])
+    fetchKnowledgeBases()
+  }, [])
 
-  const handleSend = async () => {
-    const content = inputValue.trim()
-    if (!content || isGenerating) return
+  const handleSend = async (content: string) => {
+    const trimmed = content.trim()
+    if (!trimmed || isGenerating) return
 
     setInputValue('')
     setIsGenerating(true)
@@ -67,7 +60,7 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
 
     if (!currentConversationId) {
       try {
-        const conv = await createConversation(content.slice(0, 30))
+        const conv = await createConversation(trimmed.slice(0, 30))
         currentConversationId = conv.id
       } catch {
         message.error('创建对话失败')
@@ -80,7 +73,7 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
       id: `temp-${Date.now()}`,
       conversation_id: currentConversationId,
       role: 'user',
-      content,
+      content: trimmed,
       created_at: new Date().toISOString(),
     }
     addMessage(userMessage)
@@ -89,9 +82,9 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
     let fullReasoning = ''
     abortRef.current = chatApi.sendMessage(
       {
-        message: content,
+        message: trimmed,
         conversation_id: currentConversationId,
-        document_ids: selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
+        knowledge_base_ids: selectedKnowledgeBaseIds.length > 0 ? selectedKnowledgeBaseIds : undefined,
         model: selectedModel || undefined,
       },
       (chunkContent, chunkReasoning) => {
@@ -150,13 +143,6 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
   const allMessages = useMemo(() => {
     const msgs = [...messages]
     if (streamingContent || streamingReasoning) {
@@ -173,7 +159,7 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   }, [messages, streamingContent, streamingReasoning, conversationId])
 
   const bubbleItems: BubbleItemType[] = useMemo(() => {
-    return allMessages.map((msg) => ({
+    const items: BubbleItemType[] = allMessages.map((msg) => ({
       key: msg.id,
       role: msg.role === 'user' ? 'user' : 'ai',
       content: msg.content,
@@ -182,7 +168,17 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
         isStreaming: msg.id === 'streaming',
       },
     }))
-  }, [allMessages])
+    // Show loading bubble when generating but no content yet
+    if (isGenerating && !streamingContent && !streamingReasoning) {
+      items.push({
+        key: 'loading',
+        role: 'ai',
+        content: '',
+        loading: true,
+      } as BubbleItemType)
+    }
+    return items
+  }, [allMessages, isGenerating, streamingContent, streamingReasoning])
 
   const modelMenuItems = models.map((m) => ({
     key: m.name,
@@ -195,6 +191,20 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   }))
 
   const displayModelName = selectedModel || 'Atlas'
+
+  const kbMenuItems = knowledgeBases.map((kb) => ({
+    key: kb.id,
+    label: (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 160 }}>
+        <span>{kb.name}</span>
+        {selectedKnowledgeBaseIds.includes(kb.id) && (
+          <CheckOutlined style={{ color: '#52c41a', marginLeft: 8 }} />
+        )}
+      </div>
+    ),
+  }))
+
+  const hasSelectedKB = selectedKnowledgeBaseIds.length > 0
 
   return (
     <div className="main-content">
@@ -222,9 +232,9 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
             <RobotOutlined className="empty-state-icon" />
             <div style={{ fontSize: 16, marginBottom: 8 }}>有问题，尽管问</div>
             <div style={{ fontSize: 13 }}>
-              {selectedDocumentIds.length > 0
-                ? `已选择 ${selectedDocumentIds.length} 个文档作为知识库`
-                : '上传文档后可基于文档内容问答'}
+              {hasSelectedKB
+                ? `已选择 ${selectedKnowledgeBaseIds.length} 个知识库`
+                : '选择知识库后可基于文档内容问答'}
             </div>
           </div>
         ) : (
@@ -284,11 +294,6 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
                               <Actions.Copy text={content as string} />
                             ),
                           },
-                          {
-                            key: 'retry',
-                            icon: <RedoOutlined />,
-                            label: '重试',
-                          },
                         ]}
                       />
                     )
@@ -300,52 +305,54 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
         )}
       </div>
 
-      {/* Input Area */}
+      {/* Input Area - Sender */}
       <div className="input-area">
-        <div className="input-container">
-          <div className="input-actions-top">
-            <button className="input-action-btn" title="添加附件">
-              <PlusOutlined />
-            </button>
-            <button className="input-action-btn" title="搜索网络">
-              <GlobalOutlined />
-            </button>
-            <button className="input-action-btn" title="Canvas">
-              <ScissorOutlined />
-            </button>
-            <button className="input-action-btn" title="格式">
-              <FontSizeOutlined />
-            </button>
-          </div>
-          <div className="input-main">
-            <textarea
-              ref={textareaRef}
-              className="input-textarea"
-              placeholder="有问题，尽管问"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={isGenerating}
-            />
-            <button className="input-action-btn" title="语音输入">
-              <AudioOutlined />
-            </button>
-            {isGenerating ? (
-              <button className="send-btn" onClick={handleStop} title="停止">
-                <StopOutlined />
-              </button>
-            ) : (
-              <button
-                className="send-btn"
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                title="发送"
+        <div className="sender-wrapper">
+          {hasSelectedKB && (
+            <div className="sender-selected-kbs">
+              {knowledgeBases
+                .filter((kb) => selectedKnowledgeBaseIds.includes(kb.id))
+                .map((kb) => (
+                  <Tag
+                    key={kb.id}
+                    closable
+                    onClose={() => toggleKnowledgeBaseSelection(kb.id)}
+                    style={{ margin: 0 }}
+                  >
+                    <BookOutlined style={{ marginRight: 4 }} />
+                    {kb.name}
+                  </Tag>
+                ))}
+            </div>
+          )}
+          <Sender
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={handleSend}
+            onCancel={handleStop}
+            loading={isGenerating}
+            placeholder="有问题，尽管问"
+            prefix={
+              <Dropdown
+                menu={{
+                  items: kbMenuItems,
+                  onClick: ({ key, domEvent }) => {
+                    domEvent.stopPropagation()
+                    toggleKnowledgeBaseSelection(key)
+                  },
+                  selectable: false,
+                }}
+                trigger={['click']}
+                placement="topLeft"
+                open={kbDropdownOpen}
+                onOpenChange={setKbDropdownOpen}
               >
-                <ArrowUpOutlined />
-              </button>
-            )}
-          </div>
+                <span className={`sender-kb-btn ${hasSelectedKB ? 'active' : ''}`}>
+                  <BookOutlined />
+                </span>
+              </Dropdown>
+            }
+          />
         </div>
       </div>
     </div>
