@@ -1,3 +1,15 @@
+"""
+数据库 CRUD 操作模块
+
+封装所有数据库增删改查操作，按实体分组：
+- 知识库（KnowledgeBase）CRUD
+- 文档（Document）CRUD
+- 对话（Conversation）CRUD
+- 消息（Message）CRUD
+
+所有操作使用 SQLAlchemy 异步会话，支持与 FastAPI 的依赖注入集成。
+"""
+
 import uuid
 from datetime import datetime
 from typing import Optional, List
@@ -7,12 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import KnowledgeBase, Document, Conversation, Message
 
 
-# KnowledgeBase CRUD
+# ==========================
+#  知识库（KnowledgeBase）CRUD
+# ==========================
+
 async def create_knowledge_base(
     session: AsyncSession,
     name: str,
     description: str = "",
 ) -> KnowledgeBase:
+    """创建知识库，自动生成 UUID。"""
     kb = KnowledgeBase(
         id=str(uuid.uuid4()),
         name=name,
@@ -25,11 +41,13 @@ async def create_knowledge_base(
 
 
 async def get_knowledge_base(session: AsyncSession, kb_id: str) -> Optional[KnowledgeBase]:
+    """根据 ID 查询知识库。"""
     result = await session.execute(select(KnowledgeBase).where(KnowledgeBase.id == kb_id))
     return result.scalar_one_or_none()
 
 
 async def get_all_knowledge_bases(session: AsyncSession) -> List[KnowledgeBase]:
+    """获取所有知识库，按更新时间倒序排列。"""
     result = await session.execute(select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc()))
     return list(result.scalars().all())
 
@@ -40,6 +58,7 @@ async def update_knowledge_base(
     name: Optional[str] = None,
     description: Optional[str] = None,
 ) -> Optional[KnowledgeBase]:
+    """更新知识库名称和描述（仅更新非 None 字段）。"""
     kb = await get_knowledge_base(session, kb_id)
     if kb:
         if name is not None:
@@ -53,6 +72,7 @@ async def update_knowledge_base(
 
 
 async def delete_knowledge_base(session: AsyncSession, kb_id: str) -> bool:
+    """删除知识库（关联文档通过 ORM 级联自动删除）。"""
     kb = await get_knowledge_base(session, kb_id)
     if kb:
         await session.delete(kb)
@@ -62,6 +82,7 @@ async def delete_knowledge_base(session: AsyncSession, kb_id: str) -> bool:
 
 
 async def get_knowledge_base_documents(session: AsyncSession, kb_id: str) -> List[Document]:
+    """获取知识库下的所有文档，按创建时间倒序排列。"""
     result = await session.execute(
         select(Document).where(Document.knowledge_base_id == kb_id).order_by(Document.created_at.desc())
     )
@@ -71,14 +92,17 @@ async def get_knowledge_base_documents(session: AsyncSession, kb_id: str) -> Lis
 async def get_document_ids_for_knowledge_bases(
     session: AsyncSession, kb_ids: List[str]
 ) -> List[str]:
-    """Resolve knowledge base IDs to document IDs."""
+    """将知识库 ID 列表解析为文档 ID 列表（用于 RAG 检索时的文档范围限定）。"""
     result = await session.execute(
         select(Document.id).where(Document.knowledge_base_id.in_(kb_ids))
     )
     return list(result.scalars().all())
 
 
-# Document CRUD
+# ==========================
+#  文档（Document）CRUD
+# ==========================
+
 async def create_document(
     session: AsyncSession,
     filename: str,
@@ -87,6 +111,7 @@ async def create_document(
     knowledge_base_id: str,
     chunk_count: int = 0,
 ) -> Document:
+    """创建文档记录，自动生成 UUID。"""
     doc = Document(
         id=str(uuid.uuid4()),
         filename=filename,
@@ -102,6 +127,7 @@ async def create_document(
 
 
 async def get_document(session: AsyncSession, doc_id: str) -> Optional[Document]:
+    """根据 ID 查询文档。"""
     result = await session.execute(select(Document).where(Document.id == doc_id))
     return result.scalar_one_or_none()
 
@@ -109,6 +135,7 @@ async def get_document(session: AsyncSession, doc_id: str) -> Optional[Document]
 async def get_all_documents(
     session: AsyncSession, knowledge_base_id: Optional[str] = None
 ) -> List[Document]:
+    """获取文档列表，支持按知识库 ID 过滤。"""
     query = select(Document).order_by(Document.created_at.desc())
     if knowledge_base_id:
         query = query.where(Document.knowledge_base_id == knowledge_base_id)
@@ -119,6 +146,7 @@ async def get_all_documents(
 async def update_document_chunk_count(
     session: AsyncSession, doc_id: str, chunk_count: int
 ) -> Optional[Document]:
+    """更新文档的分片数量（文档索引完成后调用）。"""
     doc = await get_document(session, doc_id)
     if doc:
         doc.chunk_count = chunk_count
@@ -128,6 +156,7 @@ async def update_document_chunk_count(
 
 
 async def delete_document(session: AsyncSession, doc_id: str) -> bool:
+    """删除文档记录。"""
     doc = await get_document(session, doc_id)
     if doc:
         await session.delete(doc)
@@ -136,8 +165,12 @@ async def delete_document(session: AsyncSession, doc_id: str) -> bool:
     return False
 
 
-# Conversation CRUD
+# ==========================
+#  对话（Conversation）CRUD
+# ==========================
+
 async def create_conversation(session: AsyncSession, title: str = "New Conversation") -> Conversation:
+    """创建新对话，自动生成 UUID。"""
     conv = Conversation(
         id=str(uuid.uuid4()),
         title=title,
@@ -149,11 +182,13 @@ async def create_conversation(session: AsyncSession, title: str = "New Conversat
 
 
 async def get_conversation(session: AsyncSession, conv_id: str) -> Optional[Conversation]:
+    """根据 ID 查询对话。"""
     result = await session.execute(select(Conversation).where(Conversation.id == conv_id))
     return result.scalar_one_or_none()
 
 
 async def get_all_conversations(session: AsyncSession) -> List[Conversation]:
+    """获取所有对话，按更新时间倒序排列。"""
     result = await session.execute(
         select(Conversation).order_by(Conversation.updated_at.desc())
     )
@@ -163,6 +198,7 @@ async def get_all_conversations(session: AsyncSession) -> List[Conversation]:
 async def update_conversation_title(
     session: AsyncSession, conv_id: str, title: str
 ) -> Optional[Conversation]:
+    """更新对话标题。"""
     conv = await get_conversation(session, conv_id)
     if conv:
         conv.title = title
@@ -173,6 +209,7 @@ async def update_conversation_title(
 
 
 async def delete_conversation(session: AsyncSession, conv_id: str) -> bool:
+    """删除对话（关联消息通过 ORM 级联自动删除）。"""
     conv = await get_conversation(session, conv_id)
     if conv:
         await session.delete(conv)
@@ -181,13 +218,22 @@ async def delete_conversation(session: AsyncSession, conv_id: str) -> bool:
     return False
 
 
-# Message CRUD
+# ==========================
+#  消息（Message）CRUD
+# ==========================
+
 async def create_message(
     session: AsyncSession,
     conversation_id: str,
     role: str,
     content: str,
 ) -> Message:
+    """
+    创建消息记录。
+
+    同时更新所属对话的 updated_at 时间戳，
+    使对话列表能按最近活跃时间排序。
+    """
     msg = Message(
         id=str(uuid.uuid4()),
         conversation_id=conversation_id,
@@ -196,7 +242,7 @@ async def create_message(
     )
     session.add(msg)
 
-    # Update conversation's updated_at
+    # 同步更新对话的最后活跃时间
     conv = await get_conversation(session, conversation_id)
     if conv:
         conv.updated_at = datetime.utcnow()
@@ -209,6 +255,7 @@ async def create_message(
 async def get_conversation_messages(
     session: AsyncSession, conversation_id: str, limit: Optional[int] = None
 ) -> List[Message]:
+    """获取对话的所有消息，按时间正序排列。"""
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
@@ -223,7 +270,12 @@ async def get_conversation_messages(
 async def get_recent_messages(
     session: AsyncSession, conversation_id: str, limit: int = 10
 ) -> List[Message]:
-    """Get the most recent messages for context."""
+    """
+    获取对话的最近 N 条消息（用于构建对话上下文）。
+
+    先按时间倒序取出最新的 N 条，再反转为正序返回，
+    确保传给大模型的消息保持时间顺序。
+    """
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id)
@@ -232,4 +284,4 @@ async def get_recent_messages(
     )
     result = await session.execute(query)
     messages = list(result.scalars().all())
-    return list(reversed(messages))  # Return in chronological order
+    return list(reversed(messages))  # 反转为时间正序

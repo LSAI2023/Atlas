@@ -1,3 +1,10 @@
+"""
+聊天历史 API 模块
+
+提供对话消息历史的查询接口：
+- GET /api/history/messages/{conversation_id} - 获取指定对话的消息记录
+"""
+
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +22,13 @@ async def get_conversation_history(
     limit: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    """Get message history for a conversation."""
+    """
+    获取指定对话的消息历史记录。
+
+    Args:
+        conversation_id: 对话 ID
+        limit: 可选的消息数量限制
+    """
     conv = await crud.get_conversation(session, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")

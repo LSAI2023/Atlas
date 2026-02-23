@@ -1,3 +1,15 @@
+"""
+文档解析模块
+
+支持多种文档格式的文本提取：
+- PDF: 使用 PyMuPDF (fitz) 逐页提取文本
+- DOCX: 使用 python-docx 提取段落文本
+- TXT/MD: 自动检测编码后读取纯文本
+
+采用策略模式：BaseParser 定义解析接口，各格式实现具体解析逻辑，
+DocumentParser 作为统一入口自动选择对应的解析器。
+"""
+
 from pathlib import Path
 from abc import ABC, abstractmethod
 
@@ -7,14 +19,16 @@ import chardet
 
 
 class BaseParser(ABC):
+    """文档解析器基类，定义解析接口。"""
+
     @abstractmethod
     def parse(self, file_path: Path) -> str:
-        """Parse document and return text content."""
+        """解析文档并返回提取的文本内容。"""
         pass
 
     @staticmethod
     def get_file_type(file_path: Path) -> str:
-        """Get file type from extension."""
+        """根据文件扩展名识别文档类型。"""
         suffix = file_path.suffix.lower()
         type_map = {
             ".pdf": "pdf",
@@ -28,8 +42,9 @@ class BaseParser(ABC):
 
 
 class PDFParser(BaseParser):
+    """PDF 文档解析器，使用 PyMuPDF 逐页提取文本。"""
+
     def parse(self, file_path: Path) -> str:
-        """Parse PDF file using PyMuPDF."""
         text_parts = []
         with fitz.open(file_path) as doc:
             for page in doc:
@@ -40,8 +55,9 @@ class PDFParser(BaseParser):
 
 
 class DocxParser(BaseParser):
+    """Word 文档解析器，使用 python-docx 提取段落文本。"""
+
     def parse(self, file_path: Path) -> str:
-        """Parse Word document using python-docx."""
         doc = DocxDocument(file_path)
         text_parts = []
         for para in doc.paragraphs:
@@ -51,25 +67,32 @@ class DocxParser(BaseParser):
 
 
 class TextParser(BaseParser):
+    """纯文本/Markdown 解析器，自动检测文件编码。"""
+
     def parse(self, file_path: Path) -> str:
-        """Parse text/markdown file with encoding detection."""
         with open(file_path, "rb") as f:
             raw_data = f.read()
 
-        # Detect encoding
+        # 使用 chardet 自动检测文件编码
         detected = chardet.detect(raw_data)
         encoding = detected.get("encoding", "utf-8") or "utf-8"
 
         try:
             return raw_data.decode(encoding)
         except UnicodeDecodeError:
-            # Fallback to utf-8 with error handling
+            # 检测失败时回退到 UTF-8，忽略无法解码的字符
             return raw_data.decode("utf-8", errors="ignore")
 
 
 class DocumentParser:
-    """Unified document parser that selects appropriate parser based on file type."""
+    """
+    统一文档解析入口。
 
+    根据文件扩展名自动选择对应的解析器，
+    返回提取的文本内容和文件类型。
+    """
+
+    # 文件类型 → 解析器实例的映射表
     _parsers: dict[str, BaseParser] = {
         "pdf": PDFParser(),
         "docx": DocxParser(),
@@ -80,16 +103,16 @@ class DocumentParser:
     @classmethod
     def parse(cls, file_path: Path) -> tuple[str, str]:
         """
-        Parse document and return (content, file_type).
+        解析文档文件。
 
         Args:
-            file_path: Path to the document file
+            file_path: 文档文件路径
 
         Returns:
-            Tuple of (extracted_text, file_type)
+            (提取的文本内容, 文件类型)
 
         Raises:
-            ValueError: If file type is not supported
+            ValueError: 不支持的文件格式
         """
         file_type = BaseParser.get_file_type(file_path)
 
@@ -108,5 +131,5 @@ class DocumentParser:
 
     @classmethod
     def supported_extensions(cls) -> list[str]:
-        """Return list of supported file extensions."""
+        """返回支持的文件扩展名列表。"""
         return [".pdf", ".docx", ".txt", ".md", ".markdown"]

@@ -1,3 +1,13 @@
+/**
+ * 知识库文档管理视图组件
+ *
+ * 展示选中知识库的文档列表，支持：
+ * - 文档上传：拖拽或点击上传（支持 PDF/DOCX/TXT/MD）
+ * - 文档列表：显示文件名、大小、分片数量
+ * - 文档预览：右侧抽屉展示文档的所有分片内容（Markdown 渲染）
+ * - 文档删除：带确认弹窗
+ */
+
 import { Upload, Tag, Popconfirm, Spin, Drawer, message } from 'antd'
 import {
   InboxOutlined,
@@ -24,10 +34,12 @@ function KnowledgeBaseView() {
     clearPreview,
   } = useKnowledgeBaseStore()
 
+  // 获取当前选中的知识库信息
   const currentKB = knowledgeBases.find((kb) => kb.id === currentKnowledgeBaseId)
 
+  /** 文件上传配置 */
   const uploadProps: UploadProps = {
-    showUploadList: false,
+    showUploadList: false,  // 不显示 antd 默认的上传列表（使用自定义列表）
     beforeUpload: async (file) => {
       try {
         await uploadDocument(file)
@@ -35,17 +47,19 @@ function KnowledgeBaseView() {
       } catch {
         message.error(`${file.name} 上传失败`)
       }
-      return false
+      return false  // 阻止 antd 的默认上传行为，使用自定义上传逻辑
     },
-    accept: '.pdf,.docx,.txt,.md',
+    accept: '.pdf,.docx,.txt,.md',  // 限制可选文件类型
   }
 
+  /** 格式化文件大小为人类可读格式 */
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  // 未选中知识库时显示空状态引导
   if (!currentKB) {
     return (
       <div className="main-content">
@@ -60,7 +74,7 @@ function KnowledgeBaseView() {
 
   return (
     <div className="main-content">
-      {/* Header */}
+      {/* 顶部：知识库名称和描述 */}
       <div className="main-header">
         <div className="kb-view-title">
           <span style={{ fontWeight: 600, fontSize: 16 }}>{currentKB.name}</span>
@@ -72,10 +86,10 @@ function KnowledgeBaseView() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* 内容区域 */}
       <div className="kb-view-content">
         <div className="kb-view-inner">
-          {/* Upload area */}
+          {/* 文件上传区域 */}
           <Upload {...uploadProps}>
             <div className="kb-upload-area">
               <InboxOutlined style={{ fontSize: 18, color: '#999' }} />
@@ -87,13 +101,15 @@ function KnowledgeBaseView() {
             </div>
           </Upload>
 
-          {/* Document list */}
+          {/* 文档列表 */}
           <div className="kb-document-list">
             {currentDocuments.map((doc) => (
               <div key={doc.id} className="kb-document-card">
+                {/* 文件图标 */}
                 <div className="kb-document-card-icon">
                   <FileTextOutlined style={{ color: '#999' }} />
                 </div>
+                {/* 文件信息：名称、大小、分片数 */}
                 <div className="kb-document-card-info">
                   <div className="kb-document-card-name">{doc.filename}</div>
                   <div className="kb-document-card-meta">
@@ -110,6 +126,7 @@ function KnowledgeBaseView() {
                     )}
                   </div>
                 </div>
+                {/* 操作按钮：预览和删除 */}
                 <div className="kb-document-card-actions">
                   <EyeOutlined
                     onClick={() => fetchDocumentDetail(doc.id)}
@@ -128,6 +145,7 @@ function KnowledgeBaseView() {
                 </div>
               </div>
             ))}
+            {/* 空状态：无文档时提示上传 */}
             {currentDocuments.length === 0 && !uploading && (
               <div style={{ padding: 24, textAlign: 'center', color: '#999' }}>
                 暂无文档，请上传
@@ -137,7 +155,7 @@ function KnowledgeBaseView() {
         </div>
       </div>
 
-      {/* Chunk preview drawer */}
+      {/* 文档预览抽屉：展示文档的所有分片内容 */}
       <Drawer
         title={
           previewDocument ? (
@@ -158,6 +176,7 @@ function KnowledgeBaseView() {
       >
         {previewDocument && (
           <div className="document-preview">
+            {/* 文档元信息 */}
             <div className="document-preview-header">
               <div className="document-preview-filename">{previewDocument.filename}</div>
               <div className="document-preview-meta">
@@ -173,6 +192,7 @@ function KnowledgeBaseView() {
                 )}
               </div>
             </div>
+            {/* 分片内容列表 */}
             <div className="document-preview-chunks">
               {previewDocument.chunks && previewDocument.chunks.length > 0 ? (
                 previewDocument.chunks.map((chunk, index) => (
@@ -195,6 +215,7 @@ function KnowledgeBaseView() {
         )}
       </Drawer>
 
+      {/* 全局加载遮罩（预览加载时显示） */}
       {previewLoading && (
         <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000 }}>
           <Spin tip="加载中..." />

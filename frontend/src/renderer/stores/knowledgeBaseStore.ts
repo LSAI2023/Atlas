@@ -1,3 +1,16 @@
+/**
+ * 知识库状态管理（Zustand Store）
+ *
+ * 管理知识库相关的全局状态：
+ * - knowledgeBases: 知识库列表
+ * - currentKnowledgeBaseId: 当前查看的知识库 ID（用于文档管理视图）
+ * - selectedKnowledgeBaseIds: 勾选用于对话的知识库 ID 列表（用于 RAG 检索）
+ * - currentDocuments: 当前知识库下的文档列表
+ * - previewDocument: 正在预览的文档详情（含分片内容）
+ *
+ * 提供异步操作：知识库 CRUD、文档上传/删除/预览等。
+ */
+
 import { create } from 'zustand'
 import {
   knowledgeBaseApi,
@@ -7,30 +20,32 @@ import {
   DocumentDetail,
 } from '../services/api'
 
+/** 知识库 Store 的状态和操作接口 */
 interface KnowledgeBaseState {
-  knowledgeBases: KnowledgeBase[]
-  currentKnowledgeBaseId: string | null
-  currentDocuments: Document[]
-  selectedKnowledgeBaseIds: string[]
-  uploading: boolean
-  previewDocument: DocumentDetail | null
-  previewLoading: boolean
-  loading: boolean
-  error: string | null
+  knowledgeBases: KnowledgeBase[]          // 知识库列表
+  currentKnowledgeBaseId: string | null     // 当前查看的知识库 ID
+  currentDocuments: Document[]              // 当前知识库下的文档列表
+  selectedKnowledgeBaseIds: string[]        // 已勾选的知识库 ID（用于对话时的 RAG 检索范围）
+  uploading: boolean                        // 文档上传中状态
+  previewDocument: DocumentDetail | null    // 正在预览的文档详情
+  previewLoading: boolean                   // 文档预览加载中状态
+  loading: boolean                          // 通用加载状态
+  error: string | null                      // 错误信息
 
-  fetchKnowledgeBases: () => Promise<void>
-  createKnowledgeBase: (name: string, description?: string) => Promise<KnowledgeBase>
-  deleteKnowledgeBase: (id: string) => Promise<void>
-  selectKnowledgeBase: (id: string) => Promise<void>
-  clearCurrentKnowledgeBase: () => void
-  toggleKnowledgeBaseSelection: (id: string) => void
-  uploadDocument: (file: File) => Promise<Document>
-  deleteDocument: (id: string) => Promise<void>
-  fetchDocumentDetail: (id: string) => Promise<void>
-  clearPreview: () => void
+  fetchKnowledgeBases: () => Promise<void>                              // 拉取知识库列表
+  createKnowledgeBase: (name: string, description?: string) => Promise<KnowledgeBase>  // 创建知识库
+  deleteKnowledgeBase: (id: string) => Promise<void>                    // 删除知识库
+  selectKnowledgeBase: (id: string) => Promise<void>                    // 选中知识库并加载文档
+  clearCurrentKnowledgeBase: () => void                                 // 清除当前选中
+  toggleKnowledgeBaseSelection: (id: string) => void                    // 切换知识库的勾选状态
+  uploadDocument: (file: File) => Promise<Document>                     // 上传文档
+  deleteDocument: (id: string) => Promise<void>                         // 删除文档
+  fetchDocumentDetail: (id: string) => Promise<void>                    // 获取文档详情（预览）
+  clearPreview: () => void                                              // 关闭预览
 }
 
 export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
+  // 初始状态
   knowledgeBases: [],
   currentKnowledgeBaseId: null,
   currentDocuments: [],
@@ -41,6 +56,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
   loading: false,
   error: null,
 
+  /** 从后端拉取知识库列表 */
   fetchKnowledgeBases: async () => {
     set({ loading: true, error: null })
     try {
@@ -51,6 +67,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 创建新知识库并添加到列表头部 */
   createKnowledgeBase: async (name: string, description?: string) => {
     set({ loading: true, error: null })
     try {
@@ -66,12 +83,15 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 删除知识库：同时清理选中状态和当前查看状态 */
   deleteKnowledgeBase: async (id: string) => {
     try {
       await knowledgeBaseApi.delete(id)
       set((state) => ({
         knowledgeBases: state.knowledgeBases.filter((kb) => kb.id !== id),
+        // 从勾选列表中移除
         selectedKnowledgeBaseIds: state.selectedKnowledgeBaseIds.filter((kid) => kid !== id),
+        // 如果删除的是当前查看的知识库，清除当前状态
         currentKnowledgeBaseId: state.currentKnowledgeBaseId === id ? null : state.currentKnowledgeBaseId,
         currentDocuments: state.currentKnowledgeBaseId === id ? [] : state.currentDocuments,
       }))
@@ -80,6 +100,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 选中知识库：设为当前查看并加载其文档列表 */
   selectKnowledgeBase: async (id: string) => {
     set({ currentKnowledgeBaseId: id, loading: true, error: null, previewDocument: null })
     try {
@@ -90,21 +111,24 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 清除当前知识库的查看状态 */
   clearCurrentKnowledgeBase: () => {
     set({ currentKnowledgeBaseId: null, currentDocuments: [], previewDocument: null })
   },
 
+  /** 切换知识库的勾选状态（用于对话时选择 RAG 检索范围） */
   toggleKnowledgeBaseSelection: (id: string) => {
     set((state) => {
       const isSelected = state.selectedKnowledgeBaseIds.includes(id)
       return {
         selectedKnowledgeBaseIds: isSelected
-          ? state.selectedKnowledgeBaseIds.filter((kid) => kid !== id)
-          : [...state.selectedKnowledgeBaseIds, id],
+          ? state.selectedKnowledgeBaseIds.filter((kid) => kid !== id)  // 取消勾选
+          : [...state.selectedKnowledgeBaseIds, id],                    // 添加勾选
       }
     })
   },
 
+  /** 上传文档到当前知识库 */
   uploadDocument: async (file: File) => {
     const { currentKnowledgeBaseId } = get()
     if (!currentKnowledgeBaseId) {
@@ -113,6 +137,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     set({ uploading: true, error: null })
     try {
       const document = await documentApi.upload(file, currentKnowledgeBaseId)
+      // 上传成功后添加到文档列表头部
       set((state) => ({
         currentDocuments: [document, ...state.currentDocuments],
         uploading: false,
@@ -124,6 +149,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 删除文档：从列表中移除，如果正在预览该文档则关闭预览 */
   deleteDocument: async (id: string) => {
     try {
       await documentApi.delete(id)
@@ -136,6 +162,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 获取文档详情（含分片内容），用于预览抽屉展示 */
   fetchDocumentDetail: async (id: string) => {
     set({ previewLoading: true })
     try {
@@ -146,6 +173,7 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
     }
   },
 
+  /** 关闭文档预览 */
   clearPreview: () => {
     set({ previewDocument: null })
   },
