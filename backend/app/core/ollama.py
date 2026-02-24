@@ -44,13 +44,22 @@ class OllamaService:
         )
         return response.embeddings[0]
 
-    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """批量将多条文本转换为向量表示。"""
-        response = await self.client.embed(
-            model=self.embedding_model,
-            input=texts,
-        )
-        return response.embeddings
+    async def generate_embeddings(self, texts: List[str], batch_size: int = 50) -> List[List[float]]:
+        """
+        批量将多条文本转换为向量表示。
+
+        为避免单次请求过大导致 Ollama 超时或内存溢出，
+        自动按 batch_size 分批发送请求。
+        """
+        all_embeddings: List[List[float]] = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            response = await self.client.embed(
+                model=self.embedding_model,
+                input=batch,
+            )
+            all_embeddings.extend(response.embeddings)
+        return all_embeddings
 
     async def chat_stream(
         self,

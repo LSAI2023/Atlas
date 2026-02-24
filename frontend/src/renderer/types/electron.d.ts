@@ -1,5 +1,6 @@
 export interface ElectronAPI {
   platform: string
+  backendPort?: number
 }
 
 declare global {

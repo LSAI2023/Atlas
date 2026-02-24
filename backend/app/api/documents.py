@@ -126,7 +126,8 @@ async def upload_document(
         # 其他错误也需要清理文件
         if file_path.exists():
             os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
+        error_detail = str(e) or repr(e)
+        raise HTTPException(status_code=500, detail=f"Failed to process document: {error_detail}")
 
 
 @router.get("")

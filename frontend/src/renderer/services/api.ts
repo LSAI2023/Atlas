@@ -13,8 +13,19 @@
 
 import axios from 'axios'
 
-/** API 基础路径（通过 Vite 代理转发到后端） */
-const API_BASE = '/api'
+/**
+ * API 基础路径
+ * - 生产环境：通过 Electron preload 获取后端端口，直连 127.0.0.1
+ * - 开发环境：使用 /api，由 Vite 代理转发到后端
+ */
+function getApiBase(): string {
+  if (window.electronAPI?.backendPort) {
+    return `http://127.0.0.1:${window.electronAPI.backendPort}/api`
+  }
+  return '/api'
+}
+
+const API_BASE = getApiBase()
 
 // ===========================
 //  TypeScript 类型定义
