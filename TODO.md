@@ -11,7 +11,7 @@
 
 ### Phase 2 — RAG 功能扩展（为 Phase 4 检索大重构铺垫）
 - [x] **TODO 5** — 知识库备注：7.1 层级化检索的前置条件（KB description）
-- [ ] **TODO 1** — 文档摘要：7.1 层级化检索的前置条件（summary 片段）
+- [x] **TODO 1** — 文档摘要：7.1 层级化检索的前置条件（summary 片段）
 - [ ] **TODO 4** — 引用溯源：在 TODO 7 大幅重构 rag.py 之前完成
 
 ### Phase 3 — 上传流程重构

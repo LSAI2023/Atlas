@@ -38,6 +38,7 @@ class VectorStore:
         chunks: List[str],
         document_id: str,
         metadatas: Optional[List[Dict]] = None,
+        is_summary: bool = False,
     ) -> List[str]:
         """
         将文档片段向量化后存入 ChromaDB。
@@ -62,7 +63,10 @@ class VectorStore:
         embeddings = await ollama_service.generate_embeddings(chunks)
 
         # 为每个片段生成唯一 ID
-        chunk_ids = [f"{document_id}_{i}" for i in range(len(chunks))]
+        if is_summary:
+            chunk_ids = [f"{document_id}_summary_{i}" for i in range(len(chunks))]
+        else:
+            chunk_ids = [f"{document_id}_{i}" for i in range(len(chunks))]
 
         # 初始化元数据（如果未提供）
         if metadatas is None:

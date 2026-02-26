@@ -21,6 +21,7 @@ from app.db import get_session
 from app.db import crud
 from app.config import settings
 from app.core import DocumentParser, text_chunker, vector_store
+from app.core.ollama import ollama_service
 
 
 router = APIRouter()
@@ -126,6 +127,34 @@ async def upload_document(
 
         # 步骤 6：更新数据库中的片段数量
         await crud.update_document_chunk_count(session, doc.id, len(chunks))
+
+        # 步骤 7：调用 LLM 生成文档摘要
+        try:
+            # 取前 3000 字符作为摘要输入，避免超出上下文长度
+            summary_input = content[:3000]
+            summary_prompt = f"请用中文为以下文档内容生成一份简明摘要（200字以内），概括文档的主题、关键内容和核心要点：\n\n{summary_input}"
+            summary_response = await ollama_service.chat(
+                messages=[{"role": "user", "content": summary_prompt}],
+            )
+            summary_text = summary_response.get("content", "").strip()
+            if summary_text:
+                # 保存摘要到数据库
+                await crud.update_document_summary(session, doc.id, summary_text)
+                # 将摘要作为特殊片段存入 ChromaDB
+                await vector_store.add_documents(
+                    chunks=[summary_text],
+                    document_id=doc.id,
+                    metadatas=[{
+                        "filename": filename,
+                        "chunk_index": -1,
+                        "total_chunks": len(chunks),
+                        "type": "summary",
+                    }],
+                    is_summary=True,
+                )
+        except Exception:
+            # 摘要生成失败不影响主流程
+            pass
 
         return {
             "id": doc.id,

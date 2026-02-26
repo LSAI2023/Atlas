@@ -171,6 +171,18 @@ async def update_document_chunk_count(
     return doc
 
 
+async def update_document_summary(
+    session: AsyncSession, doc_id: str, summary: str
+) -> Optional[Document]:
+    """更新文档的摘要（摘要生成完成后调用）。"""
+    doc = await get_document(session, doc_id)
+    if doc:
+        doc.summary = summary
+        await session.commit()
+        await session.refresh(doc)
+    return doc
+
+
 async def delete_document(session: AsyncSession, doc_id: str) -> bool:
     """删除文档记录。"""
     doc = await get_document(session, doc_id)
