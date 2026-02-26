@@ -186,6 +186,32 @@ class VectorStore:
 
         return chunks
 
+    def get_chunk_by_index(self, document_id: str, chunk_index: int) -> Optional[Dict]:
+        """
+        按 document_id 和 chunk_index 获取单个分片内容。
+
+        Args:
+            document_id: 文档 ID
+            chunk_index: 分片索引
+
+        Returns:
+            包含 content 和 metadata 的字典，未找到时返回 None
+        """
+        chunk_id = f"{document_id}_{chunk_index}"
+        try:
+            results = self.collection.get(
+                ids=[chunk_id],
+                include=["documents", "metadatas"],
+            )
+            if results["documents"] and results["documents"][0]:
+                return {
+                    "content": results["documents"][0],
+                    "metadata": results["metadatas"][0] if results["metadatas"] else {},
+                }
+        except Exception:
+            pass
+        return None
+
     def count(self) -> int:
         """返回集合中的总片段数量。"""
         return self.collection.count()

@@ -109,6 +109,7 @@ class Message(Base):
     role = Column(String, nullable=False)             # 消息角色：'user'（用户）| 'assistant'（助手）
     content = Column(Text, nullable=False)            # 消息内容
     reasoning = Column(Text, nullable=True)            # 模型思考过程（仅 assistant 消息）
+    references = Column(Text, nullable=True)            # 引用信息 JSON（仅 RAG 模式的 assistant 消息）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 多对一关系：消息属于某个对话
@@ -125,6 +126,12 @@ class Message(Base):
         }
         if self.reasoning:
             result["reasoning"] = self.reasoning
+        if self.references:
+            import json as _json
+            try:
+                result["references"] = _json.loads(self.references)
+            except (ValueError, TypeError):
+                result["references"] = []
         return result
 
 

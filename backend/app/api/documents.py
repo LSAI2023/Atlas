@@ -208,7 +208,22 @@ async def get_document(
     }
 
 
-@router.delete("/{document_id}")
+@router.get("/{document_id}/chunks/{chunk_index}")
+async def get_chunk_content(
+    document_id: str,
+    chunk_index: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """按 document_id 和 chunk_index 获取单个分片内容（用于引用溯源按需加载）。"""
+    doc = await crud.get_document(session, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    chunk = vector_store.get_chunk_by_index(document_id, chunk_index)
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    return chunk
 async def delete_document(
     document_id: str,
     session: AsyncSession = Depends(get_session),

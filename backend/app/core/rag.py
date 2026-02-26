@@ -111,7 +111,8 @@ class RAGService:
         document_ids: Optional[List[str]] = None,
         model: Optional[str] = None,
         kb_descriptions: Optional[List[str]] = None,
-    ) -> AsyncGenerator[Dict[str, str], None]:
+        kb_map: Optional[Dict[str, Dict]] = None,
+    ) -> AsyncGenerator[Dict, None]:
         """
         流式生成回答。
 
@@ -120,13 +121,14 @@ class RAGService:
         - 无 document_ids → 直接使用通用系统提示词生成
 
         Yields:
-            字典 {"content": "回答片段", "reasoning": "思考过程片段"}
+            字典 {"content": "...", "reasoning": "..."} 或 {"references": [...]}
         """
         history_messages = history_messages or []
 
         # 构建包含历史记录的消息数组
         messages = self.build_messages(query, history_messages)
 
+        retrieved_chunks = []
         if document_ids:
             # RAG 模式：检索相关文档片段并构建上下文
             retrieved_chunks = await self.retrieve(
@@ -153,6 +155,23 @@ class RAGService:
             model=model,
         ):
             yield chunk
+
+        # 流结束后 yield 引用索引信息
+        if retrieved_chunks and kb_map:
+            references = []
+            for chunk in retrieved_chunks:
+                metadata = chunk.get("metadata", {})
+                doc_id = metadata.get("document_id", "")
+                doc_info = kb_map.get(doc_id, {})
+                references.append({
+                    "knowledge_base_id": doc_info.get("knowledge_base_id", ""),
+                    "knowledge_base_name": doc_info.get("knowledge_base_name", ""),
+                    "document_id": doc_id,
+                    "filename": metadata.get("filename", ""),
+                    "chunk_index": metadata.get("chunk_index", 0),
+                    "distance": chunk.get("distance", 0),
+                })
+            yield {"references": references}
 
     async def generate(
         self,

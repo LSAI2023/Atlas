@@ -36,6 +36,7 @@ _MIGRATIONS = [
     ("documents", "file_hash", "TEXT"),
     ("documents", "summary", "TEXT"),
     ("messages", "reasoning", "TEXT"),
+    ("messages", "references", "TEXT"),
 ]
 
 

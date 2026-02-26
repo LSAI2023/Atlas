@@ -80,6 +80,16 @@ export interface Conversation {
   updated_at: string
 }
 
+/** 引用信息 */
+export interface Reference {
+  knowledge_base_id: string
+  knowledge_base_name: string
+  document_id: string
+  filename: string
+  chunk_index: number
+  distance: number
+}
+
 /** 消息 */
 export interface Message {
   id: string
@@ -87,6 +97,7 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   reasoning?: string       // 模型的思考过程（可选）
+  references?: Reference[] // 引用溯源信息（可选）
   created_at: string
 }
 
@@ -171,6 +182,12 @@ export const documentApi = {
   delete: async (id: string): Promise<void> => {
     await axios.delete(`${API_BASE}/documents/${id}`)
   },
+
+  /** 获取单个分片内容（按需加载，用于引用溯源） */
+  getChunk: async (documentId: string, chunkIndex: number): Promise<{ content: string; metadata: Record<string, unknown> }> => {
+    const response = await axios.get(`${API_BASE}/documents/${documentId}/chunks/${chunkIndex}`)
+    return response.data
+  },
 }
 
 // ===========================
@@ -226,7 +243,7 @@ export const chatApi = {
   sendMessage: (
     request: ChatRequest,
     onChunk: (content: string, reasoning: string) => void,
-    onDone: () => void,
+    onDone: (references?: Reference[]) => void,
     onError: (error: string) => void
   ): (() => void) => {
     const controller = new AbortController()
@@ -268,7 +285,7 @@ export const chatApi = {
                 if (data.error) {
                   onError(data.error)
                 } else if (data.done) {
-                  onDone()
+                  onDone(data.references)
                 } else {
                   onChunk(data.content || '', data.reasoning || '')
                 }

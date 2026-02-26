@@ -32,7 +32,7 @@ import type { BubbleItemType } from '@ant-design/x'
 import XMarkdown from '@ant-design/x-markdown'
 import { useConversationStore } from '../stores/conversationStore'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBaseStore'
-import { chatApi, modelsApi, Message, OllamaModel } from '../services/api'
+import { chatApi, modelsApi, Message, OllamaModel, Reference, documentApi } from '../services/api'
 
 interface ChatPanelProps {
   conversationId: string | null  // 当前对话 ID，为 null 表示未选择对话
@@ -46,6 +46,8 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   const [models, setModels] = useState<OllamaModel[]>([])        // 可用模型列表
   const [selectedModel, setSelectedModel] = useState<string>('')  // 当前选中的模型
   const [kbDropdownOpen, setKbDropdownOpen] = useState(false)     // 知识库下拉菜单是否展开
+  const [expandedChunks, setExpandedChunks] = useState<Record<string, string>>({}) // 已展开的分片内容
+  const [loadingChunks, setLoadingChunks] = useState<Record<string, boolean>>({})  // 分片加载状态
   const abortRef = useRef<(() => void) | null>(null)             // SSE 请求的中止函数引用
 
   const { messages, addMessage, createConversation } = useConversationStore()
@@ -129,13 +131,14 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
         }
       },
       // onDone: 生成完成，将完整回答添加为正式消息
-      () => {
+      (references) => {
         const assistantMessage: Message = {
           id: `temp-${Date.now()}-assistant`,
           conversation_id: currentConversationId!,
           role: 'assistant',
           content: fullContent,
           reasoning: fullReasoning || undefined,
+          references: references,
           created_at: new Date().toISOString(),
         }
         addMessage(assistantMessage)
@@ -205,6 +208,7 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
       content: msg.content,
       extraInfo: {
         reasoning: msg.reasoning,
+        references: msg.references,
         isStreaming: msg.id === 'streaming',
       },
     }))
@@ -247,6 +251,21 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   }))
 
   const hasSelectedKB = selectedKnowledgeBaseIds.length > 0
+
+  /** 按需加载分片内容 */
+  const handleExpandChunk = async (docId: string, chunkIndex: number) => {
+    const key = `${docId}_${chunkIndex}`
+    if (expandedChunks[key] || loadingChunks[key]) return
+    setLoadingChunks((prev) => ({ ...prev, [key]: true }))
+    try {
+      const data = await documentApi.getChunk(docId, chunkIndex)
+      setExpandedChunks((prev) => ({ ...prev, [key]: data.content }))
+    } catch {
+      message.error('加载分片内容失败')
+    } finally {
+      setLoadingChunks((prev) => ({ ...prev, [key]: false }))
+    }
+  }
 
   return (
     <div className="main-content">
@@ -303,6 +322,7 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
                   avatar: <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#52c41a' }} />,
                   contentRender: (content, info) => {
                     const reasoning = info.extraInfo?.reasoning
+                    const references = info.extraInfo?.references as Reference[] | undefined
                     const isStreaming = info.extraInfo?.isStreaming
                     return (
                       <>
@@ -326,6 +346,37 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
                               enableAnimation: true,
                             } : undefined}
                           />
+                        )}
+                        {/* 引用标签列表 */}
+                        {references && references.length > 0 && (
+                          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {references.map((ref, idx) => {
+                              const chunkKey = `${ref.document_id}_${ref.chunk_index}`
+                              const isExpanded = !!expandedChunks[chunkKey]
+                              const isLoading = !!loadingChunks[chunkKey]
+                              return (
+                                <div key={idx}>
+                                  <Tag
+                                    color="blue"
+                                    style={{ cursor: 'pointer', fontSize: 11 }}
+                                    onClick={() => handleExpandChunk(ref.document_id, ref.chunk_index)}
+                                  >
+                                    {ref.filename} #{ref.chunk_index + 1}
+                                    {isLoading && ' ...'}
+                                  </Tag>
+                                  {isExpanded && (
+                                    <div style={{
+                                      marginTop: 4, marginBottom: 4, padding: '8px 12px',
+                                      background: '#f6f8fa', borderRadius: 6, fontSize: 12,
+                                      lineHeight: 1.6, color: '#444', whiteSpace: 'pre-wrap',
+                                    }}>
+                                      {expandedChunks[chunkKey]}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
                         )}
                       </>
                     )
