@@ -291,6 +291,21 @@ export const chatApi = {
   },
 }
 
+/** 配置项信息 */
+export interface SettingItem {
+  current: string | number
+  default: string | number
+  type: 'string' | 'int'
+  label: string
+  group: string
+  is_custom: boolean
+}
+
+/** 配置列表响应 */
+export interface SettingsResponse {
+  settings: Record<string, SettingItem>
+}
+
 // ===========================
 //  模型 API
 // ===========================
@@ -299,5 +314,26 @@ export const modelsApi = {
   list: async (): Promise<{ models: OllamaModel[]; default: string }> => {
     const response = await axios.get(`${API_BASE}/chat/models`)
     return response.data
+  },
+}
+
+// ===========================
+//  配置 API
+// ===========================
+export const settingsApi = {
+  /** 获取当前配置及默认值 */
+  get: async (): Promise<SettingsResponse> => {
+    const response = await axios.get(`${API_BASE}/settings`)
+    return response.data
+  },
+
+  /** 更新配置项 */
+  update: async (settings: Record<string, string | number>): Promise<void> => {
+    await axios.put(`${API_BASE}/settings`, { settings })
+  },
+
+  /** 重置配置项为默认值 */
+  reset: async (keys?: string[]): Promise<void> => {
+    await axios.post(`${API_BASE}/settings/reset`, { keys: keys || null })
   },
 }

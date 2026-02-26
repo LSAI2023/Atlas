@@ -20,6 +20,18 @@ def _is_packaged() -> bool:
     return getattr(sys, 'frozen', False)
 
 
+# 可通过前端配置页面修改的配置项及其默认值
+CONFIGURABLE_KEYS = {
+    "ollama_base_url": {"default": "http://127.0.0.1:11434", "type": "string", "label": "Ollama 服务地址", "group": "模型配置"},
+    "ollama_chat_model": {"default": "qwen3:14b", "type": "string", "label": "对话模型", "group": "模型配置"},
+    "ollama_embedding_model": {"default": "qwen3-embedding:4b", "type": "string", "label": "嵌入模型", "group": "模型配置"},
+    "chunk_size": {"default": 600, "type": "int", "label": "分片大小（字符数）", "group": "RAG 参数"},
+    "chunk_overlap": {"default": 100, "type": "int", "label": "分片重叠（字符数）", "group": "RAG 参数"},
+    "retrieval_top_k": {"default": 5, "type": "int", "label": "检索 Top-K", "group": "RAG 参数"},
+    "max_history_messages": {"default": 10, "type": "int", "label": "最大历史消息轮数", "group": "对话参数"},
+}
+
+
 class Settings(BaseSettings):
     # ===== 应用基础配置 =====
     app_name: str = "Atlas Knowledge Base"
@@ -95,6 +107,15 @@ class Settings(BaseSettings):
         values['database_url'] = f"sqlite+aiosqlite:///{data_dir / 'sqlite' / 'atlas.db'}"
 
         return values
+
+    def apply_user_settings(self, user_settings: dict):
+        """将用户自定义配置应用到运行时 settings 单例。"""
+        for key, value in user_settings.items():
+            if key in CONFIGURABLE_KEYS and hasattr(self, key):
+                expected_type = CONFIGURABLE_KEYS[key]["type"]
+                if expected_type == "int":
+                    value = int(value)
+                setattr(self, key, value)
 
     class Config:
         env_file = ".env"

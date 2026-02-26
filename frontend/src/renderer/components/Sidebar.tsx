@@ -24,6 +24,7 @@ import {
   BookOutlined,
   PlusOutlined,
   CheckCircleFilled,
+  SettingOutlined,
 } from '@ant-design/icons'
 import { Conversations } from '@ant-design/x'
 import type { ConversationsProps } from '@ant-design/x'
@@ -38,11 +39,12 @@ interface SidebarProps {
   mode: SidebarMode                       // 当前模式
   onModeChange: (mode: SidebarMode) => void  // 模式切换回调
   onNewChat: () => void                    // 新建对话回调
+  onOpenSettings: () => void               // 打开设置页面回调
 }
 
 type ConversationItem = GetProp<ConversationsProps, 'items'>[number]
 
-function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
+function Sidebar({ mode, onModeChange, onNewChat, onOpenSettings }: SidebarProps) {
   const [searchText, setSearchText] = useState('')        // 搜索关键词
   const [kbNameInput, setKbNameInput] = useState('')       // 新建知识库的名称输入
   const [showKbCreate, setShowKbCreate] = useState(false)  // 是否显示创建知识库输入框
@@ -280,7 +282,7 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
         )}
       </div>
 
-      {/* 底部：模式切换按钮 */}
+      {/* 底部：模式切换按钮和设置入口 */}
       <div className="sidebar-footer">
         <div className="sidebar-mode-toggle">
           <div
@@ -296,6 +298,13 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
           >
             <BookOutlined />
             <span>知识库</span>
+          </div>
+          <div
+            className="sidebar-mode-btn"
+            onClick={onOpenSettings}
+          >
+            <SettingOutlined />
+            <span>设置</span>
           </div>
         </div>
       </div>

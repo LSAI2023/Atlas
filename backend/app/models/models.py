@@ -118,3 +118,12 @@ class Message(Base):
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class Setting(Base):
+    """配置表：键值对存储用户自定义配置项。"""
+    __tablename__ = "settings"
+
+    key = Column(String, primary_key=True)    # 配置项名称
+    value = Column(Text, nullable=False)       # 配置项值（JSON 字符串）
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

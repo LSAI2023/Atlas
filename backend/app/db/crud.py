@@ -16,7 +16,7 @@ from typing import Optional, List
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import KnowledgeBase, Document, Conversation, Message
+from app.models import KnowledgeBase, Document, Conversation, Message, Setting
 
 
 # ==========================
@@ -48,7 +48,8 @@ async def get_knowledge_base(session: AsyncSession, kb_id: str) -> Optional[Know
 
 async def get_all_knowledge_bases(session: AsyncSession) -> List[KnowledgeBase]:
     """获取所有知识库，按更新时间倒序排列。"""
-    result = await session.execute(select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc()))
+    result = await session.execute(select(KnowledgeBase)
+                                   .order_by(KnowledgeBase.updated_at.desc()))
     return list(result.scalars().all())
 
 
@@ -285,3 +286,50 @@ async def get_recent_messages(
     result = await session.execute(query)
     messages = list(result.scalars().all())
     return list(reversed(messages))  # 反转为时间正序
+
+
+# ==========================
+#  配置（Setting）CRUD
+# ==========================
+
+async def get_setting(session: AsyncSession, key: str) -> Optional[Setting]:
+    """根据 key 查询单个配置项。"""
+    result = await session.execute(select(Setting).where(Setting.key == key))
+    return result.scalar_one_or_none()
+
+
+async def get_all_settings(session: AsyncSession) -> List[Setting]:
+    """获取所有用户自定义配置项。"""
+    result = await session.execute(select(Setting))
+    return list(result.scalars().all())
+
+
+async def upsert_setting(session: AsyncSession, key: str, value: str) -> Setting:
+    """插入或更新配置项。"""
+    existing = await get_setting(session, key)
+    if existing:
+        existing.value = value
+        existing.updated_at = datetime.utcnow()
+    else:
+        existing = Setting(key=key, value=value)
+        session.add(existing)
+    await session.commit()
+    await session.refresh(existing)
+    return existing
+
+
+async def delete_setting(session: AsyncSession, key: str) -> bool:
+    """删除单个配置项。"""
+    setting = await get_setting(session, key)
+    if setting:
+        await session.delete(setting)
+        await session.commit()
+        return True
+    return False
+
+
+async def delete_all_settings(session: AsyncSession) -> int:
+    """删除所有配置项，返回删除数量。"""
+    result = await session.execute(delete(Setting))
+    await session.commit()
+    return result.rowcount
