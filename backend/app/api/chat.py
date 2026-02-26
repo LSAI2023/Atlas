@@ -96,13 +96,15 @@ async def generate_sse_stream(
             # 以 SSE 格式推送每个片段
             yield f"data: {json.dumps({'content': content, 'reasoning': reasoning, 'done': False})}\n\n"
 
-        # 生成完毕，将完整回答保存到数据库（思考过程不持久化）
+        # 生成完毕，将完整回答保存到数据库（包含思考过程）
         complete_response = "".join(full_content)
+        complete_reasoning = "".join(full_reasoning) or None
         await crud.create_message(
             session=session,
             conversation_id=conversation_id,
             role="assistant",
             content=complete_response,
+            reasoning=complete_reasoning,
         )
 
         # 发送完成信号

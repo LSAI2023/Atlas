@@ -34,6 +34,7 @@ async_session_maker = async_sessionmaker(
 # 格式：(表名, 列名, 列类型 SQL)
 _MIGRATIONS = [
     ("documents", "file_hash", "TEXT"),
+    ("messages", "reasoning", "TEXT"),
 ]
 
 

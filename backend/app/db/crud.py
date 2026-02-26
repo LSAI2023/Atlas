@@ -243,6 +243,7 @@ async def create_message(
     conversation_id: str,
     role: str,
     content: str,
+    reasoning: Optional[str] = None,
 ) -> Message:
     """
     创建消息记录。
@@ -255,6 +256,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        reasoning=reasoning,
     )
     session.add(msg)
 

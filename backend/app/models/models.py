@@ -106,6 +106,7 @@ class Message(Base):
     conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)  # 所属对话
     role = Column(String, nullable=False)             # 消息角色：'user'（用户）| 'assistant'（助手）
     content = Column(Text, nullable=False)            # 消息内容
+    reasoning = Column(Text, nullable=True)            # 模型思考过程（仅 assistant 消息）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 多对一关系：消息属于某个对话
@@ -113,13 +114,16 @@ class Message(Base):
 
     def to_dict(self):
         """转换为字典（用于 API 响应序列化）。"""
-        return {
+        result = {
             "id": self.id,
             "conversation_id": self.conversation_id,
             "role": self.role,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        if self.reasoning:
+            result["reasoning"] = self.reasoning
+        return result
 
 
 class Setting(Base):
