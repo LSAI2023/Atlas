@@ -54,6 +54,7 @@ class Document(Base):
     filename = Column(String, nullable=False)         # 原始文件名
     file_type = Column(String, nullable=False)        # 文件类型（pdf/docx/txt/markdown）
     file_size = Column(Integer)                       # 文件大小（字节）
+    file_hash = Column(String, nullable=True)          # 文件内容 SHA-256 哈希，同知识库内唯一
     chunk_count = Column(Integer, default=0)          # 分片数量
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)  # 所属知识库
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -68,6 +69,7 @@ class Document(Base):
             "filename": self.filename,
             "file_type": self.file_type,
             "file_size": self.file_size,
+            "file_hash": self.file_hash,
             "chunk_count": self.chunk_count,
             "knowledge_base_id": self.knowledge_base_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,

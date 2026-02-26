@@ -9,6 +9,7 @@
 """
 
 import os
+import hashlib
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -68,6 +69,24 @@ async def upload_document(
 
     file_size = os.path.getsize(file_path)
 
+    # 计算文件内容的 SHA-256 哈希值
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    file_hash = sha256.hexdigest()
+
+    # 同知识库内去重检查
+    existing_doc = await crud.get_document_by_hash(session, knowledge_base_id, file_hash)
+    if existing_doc:
+        # 重复文件，清理并拒绝
+        if file_path.exists():
+            os.remove(file_path)
+        raise HTTPException(
+            status_code=409,
+            detail=f"该知识库中已存在相同内容的文件：{existing_doc.filename}",
+        )
+
     try:
         # 步骤 1：解析文档提取文本
         content, file_type = DocumentParser.parse(file_path)
@@ -83,6 +102,7 @@ async def upload_document(
             file_size=file_size,
             knowledge_base_id=knowledge_base_id,
             chunk_count=0,
+            file_hash=file_hash,
         )
 
         # 步骤 3：将文本切分为片段

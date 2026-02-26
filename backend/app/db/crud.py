@@ -111,6 +111,7 @@ async def create_document(
     file_size: int,
     knowledge_base_id: str,
     chunk_count: int = 0,
+    file_hash: Optional[str] = None,
 ) -> Document:
     """创建文档记录，自动生成 UUID。"""
     doc = Document(
@@ -120,6 +121,7 @@ async def create_document(
         file_size=file_size,
         knowledge_base_id=knowledge_base_id,
         chunk_count=chunk_count,
+        file_hash=file_hash,
     )
     session.add(doc)
     await session.commit()
@@ -130,6 +132,19 @@ async def create_document(
 async def get_document(session: AsyncSession, doc_id: str) -> Optional[Document]:
     """根据 ID 查询文档。"""
     result = await session.execute(select(Document).where(Document.id == doc_id))
+    return result.scalar_one_or_none()
+
+
+async def get_document_by_hash(
+    session: AsyncSession, knowledge_base_id: str, file_hash: str
+) -> Optional[Document]:
+    """根据文件哈希在指定知识库内查询文档（用于去重检测）。"""
+    result = await session.execute(
+        select(Document).where(
+            Document.knowledge_base_id == knowledge_base_id,
+            Document.file_hash == file_hash,
+        )
+    )
     return result.scalar_one_or_none()
 
 
