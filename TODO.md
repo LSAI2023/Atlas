@@ -15,7 +15,7 @@
 - [x] **TODO 4** — 引用溯源：在 TODO 7 大幅重构 rag.py 之前完成
 
 ### Phase 3 — 上传流程重构
-- [ ] **TODO 6** — 文档分片异步化：等 TODO 1（摘要）和 TODO 2（去重）合入后统一异步化
+- [x] **TODO 6** — 文档分片异步化：等 TODO 1（摘要）和 TODO 2（去重）合入后统一异步化
 
 ### Phase 4 — 检索大重构
 - [ ] **TODO 7** — 检索增强：依赖 TODO 1 的 summary、TODO 5 的 description、TODO 8 的配置管理

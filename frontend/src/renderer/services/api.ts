@@ -52,6 +52,7 @@ export interface Document {
   file_type: string
   file_size: number
   chunk_count: number
+  status: 'pending' | 'processing' | 'completed' | 'failed'  // 文档处理状态
   knowledge_base_id: string
   created_at: string
 }
@@ -181,6 +182,12 @@ export const documentApi = {
   /** 删除文档 */
   delete: async (id: string): Promise<void> => {
     await axios.delete(`${API_BASE}/documents/${id}`)
+  },
+
+  /** 对失败的文档重新触发分片处理 */
+  reindex: async (id: string): Promise<{ message: string; document_id: string }> => {
+    const response = await axios.post(`${API_BASE}/documents/${id}/reindex`)
+    return response.data
   },
 
   /** 获取单个分片内容（按需加载，用于引用溯源） */

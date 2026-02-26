@@ -8,8 +8,8 @@
  * - 文档删除：带确认弹窗
  */
 
-import { useState } from 'react'
-import { Upload, Tag, Popconfirm, Spin, Drawer, message, Modal, Input } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Upload, Tag, Popconfirm, Spin, Drawer, message, Modal, Input, Button } from 'antd'
 import {
   InboxOutlined,
   EyeOutlined,
@@ -17,6 +17,8 @@ import {
   FileTextOutlined,
   ArrowLeftOutlined,
   EditOutlined,
+  ReloadOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import XMarkdown from '@ant-design/x-markdown'
@@ -32,6 +34,8 @@ function KnowledgeBaseView() {
     previewLoading,
     uploadDocument,
     deleteDocument,
+    reindexDocument,
+    refreshDocuments,
     fetchDocumentDetail,
     clearPreview,
     updateKnowledgeBase,
@@ -40,6 +44,26 @@ function KnowledgeBaseView() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // 当文档列表中存在 pending 或 processing 状态时，自动轮询刷新
+  const hasPendingDocs = currentDocuments.some(
+    (doc) => doc.status === 'pending' || doc.status === 'processing'
+  )
+
+  useEffect(() => {
+    if (hasPendingDocs) {
+      pollingRef.current = setInterval(() => {
+        refreshDocuments()
+      }, 3000)
+    }
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+    }
+  }, [hasPendingDocs, refreshDocuments])
 
   // 获取当前选中的知识库信息
   const currentKB = knowledgeBases.find((kb) => kb.id === currentKnowledgeBaseId)
@@ -73,7 +97,7 @@ function KnowledgeBaseView() {
     beforeUpload: async (file) => {
       try {
         await uploadDocument(file)
-        message.success(`${file.name} 上传成功`)
+        message.success(`${file.name} 已上传，正在后台处理分片`)
       } catch {
         message.error(`${file.name} 上传失败`)
       }
@@ -142,32 +166,63 @@ function KnowledgeBaseView() {
               <div key={doc.id} className="kb-document-card">
                 {/* 文件图标 */}
                 <div className="kb-document-card-icon">
-                  <FileTextOutlined style={{ color: '#999' }} />
+                  {doc.status === 'pending' || doc.status === 'processing' ? (
+                    <LoadingOutlined style={{ color: '#1677ff' }} />
+                  ) : (
+                    <FileTextOutlined style={{ color: '#999' }} />
+                  )}
                 </div>
-                {/* 文件信息：名称、大小、分片数 */}
+                {/* 文件信息：名称、大小、状态/分片数 */}
                 <div className="kb-document-card-info">
                   <div className="kb-document-card-name">{doc.filename}</div>
                   <div className="kb-document-card-meta">
                     <span>{formatFileSize(doc.file_size)}</span>
                     <span style={{ margin: '0 6px' }}>·</span>
-                    {doc.chunk_count > 0 ? (
-                      <Tag color="success" className="kb-chunk-tag">
-                        {doc.chunk_count} 个片段
-                      </Tag>
-                    ) : (
-                      <Tag color="warning" className="kb-chunk-tag">
-                        未分片
-                      </Tag>
+                    {doc.status === 'pending' && (
+                      <Tag color="default" className="kb-chunk-tag">等待处理</Tag>
+                    )}
+                    {doc.status === 'processing' && (
+                      <Tag color="processing" className="kb-chunk-tag">分片处理中</Tag>
+                    )}
+                    {doc.status === 'failed' && (
+                      <Tag color="error" className="kb-chunk-tag">处理失败</Tag>
+                    )}
+                    {doc.status === 'completed' && (
+                      doc.chunk_count > 0 ? (
+                        <Tag color="success" className="kb-chunk-tag">
+                          {doc.chunk_count} 个片段
+                        </Tag>
+                      ) : (
+                        <Tag color="warning" className="kb-chunk-tag">
+                          未分片
+                        </Tag>
+                      )
                     )}
                   </div>
                 </div>
-                {/* 操作按钮：预览和删除 */}
+                {/* 操作按钮：重试/预览/删除 */}
                 <div className="kb-document-card-actions">
-                  <EyeOutlined
-                    onClick={() => fetchDocumentDetail(doc.id)}
-                    style={{ color: '#666', marginRight: 8 }}
-                    title="预览分片"
-                  />
+                  {doc.status === 'failed' && (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      onClick={() => {
+                        reindexDocument(doc.id)
+                        message.info('重新分片已启动')
+                      }}
+                      style={{ padding: 0, marginRight: 8 }}
+                    >
+                      重试
+                    </Button>
+                  )}
+                  {doc.status === 'completed' && (
+                    <EyeOutlined
+                      onClick={() => fetchDocumentDetail(doc.id)}
+                      style={{ color: '#666', marginRight: 8 }}
+                      title="预览分片"
+                    />
+                  )}
                   <Popconfirm
                     title="删除文档"
                     description="确定要删除这个文档吗？"

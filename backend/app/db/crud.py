@@ -183,6 +183,18 @@ async def update_document_summary(
     return doc
 
 
+async def update_document_status(
+    session: AsyncSession, doc_id: str, status: str
+) -> Optional[Document]:
+    """更新文档的处理状态。"""
+    doc = await get_document(session, doc_id)
+    if doc:
+        doc.status = status
+        await session.commit()
+        await session.refresh(doc)
+    return doc
+
+
 async def delete_document(session: AsyncSession, doc_id: str) -> bool:
     """删除文档记录。"""
     doc = await get_document(session, doc_id)

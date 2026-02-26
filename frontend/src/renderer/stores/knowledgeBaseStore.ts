@@ -41,6 +41,8 @@ interface KnowledgeBaseState {
   toggleKnowledgeBaseSelection: (id: string) => void                    // 切换知识库的勾选状态
   uploadDocument: (file: File) => Promise<Document>                     // 上传文档
   deleteDocument: (id: string) => Promise<void>                         // 删除文档
+  reindexDocument: (id: string) => Promise<void>                        // 重新分片失败文档
+  refreshDocuments: () => Promise<void>                                 // 刷新当前知识库文档列表
   fetchDocumentDetail: (id: string) => Promise<void>                    // 获取文档详情（预览）
   clearPreview: () => void                                              // 关闭预览
 }
@@ -173,6 +175,33 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
       }))
     } catch (error) {
       set({ error: (error as Error).message })
+    }
+  },
+
+  /** 重新分片失败的文档 */
+  reindexDocument: async (id: string) => {
+    try {
+      await documentApi.reindex(id)
+      // 更新本地状态为 pending
+      set((state) => ({
+        currentDocuments: state.currentDocuments.map((d) =>
+          d.id === id ? { ...d, status: 'pending' as const } : d
+        ),
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  /** 刷新当前知识库的文档列表（用于轮询更新处理状态） */
+  refreshDocuments: async () => {
+    const { currentKnowledgeBaseId } = get()
+    if (!currentKnowledgeBaseId) return
+    try {
+      const detail = await knowledgeBaseApi.get(currentKnowledgeBaseId)
+      set({ currentDocuments: detail.documents })
+    } catch {
+      // 静默失败，不影响用户操作
     }
   },
 

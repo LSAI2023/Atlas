@@ -35,6 +35,7 @@ async_session_maker = async_sessionmaker(
 _MIGRATIONS = [
     ("documents", "file_hash", "TEXT"),
     ("documents", "summary", "TEXT"),
+    ("documents", "status", "TEXT DEFAULT 'completed'"),
     ("messages", "reasoning", "TEXT"),
     ("messages", "references", "TEXT"),
 ]
