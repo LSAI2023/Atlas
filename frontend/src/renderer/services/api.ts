@@ -317,9 +317,9 @@ export const chatApi = {
 
 /** 配置项信息 */
 export interface SettingItem {
-  current: string | number
-  default: string | number
-  type: 'string' | 'int'
+  current: string | number | boolean
+  default: string | number | boolean
+  type: 'string' | 'int' | 'float' | 'bool'
   label: string
   group: string
   is_custom: boolean
@@ -352,7 +352,7 @@ export const settingsApi = {
   },
 
   /** 更新配置项 */
-  update: async (settings: Record<string, string | number>): Promise<void> => {
+  update: async (settings: Record<string, string | number | boolean>): Promise<void> => {
     await axios.put(`${API_BASE}/settings`, { settings })
   },
 

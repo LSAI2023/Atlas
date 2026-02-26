@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Input, InputNumber, Button, message, Spin } from 'antd'
+import { Input, InputNumber, Switch, Button, message, Spin } from 'antd'
 import { ArrowLeftOutlined, UndoOutlined } from '@ant-design/icons'
 import { settingsApi, SettingItem } from '../services/api'
 
@@ -18,7 +18,7 @@ interface SettingsPageProps {
 
 function SettingsPage({ onBack }: SettingsPageProps) {
   const [settings, setSettings] = useState<Record<string, SettingItem>>({})
-  const [editValues, setEditValues] = useState<Record<string, string | number>>({})
+  const [editValues, setEditValues] = useState<Record<string, string | number | boolean>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -31,7 +31,7 @@ function SettingsPage({ onBack }: SettingsPageProps) {
     try {
       const data = await settingsApi.get()
       setSettings(data.settings)
-      const values: Record<string, string | number> = {}
+      const values: Record<string, string | number | boolean> = {}
       for (const [key, item] of Object.entries(data.settings)) {
         values[key] = item.current
       }
@@ -47,7 +47,7 @@ function SettingsPage({ onBack }: SettingsPageProps) {
     setSaving(true)
     try {
       // 只提交有变化的配置项
-      const changed: Record<string, string | number> = {}
+      const changed: Record<string, string | number | boolean> = {}
       for (const [key, value] of Object.entries(editValues)) {
         if (settings[key] && value !== settings[key].current) {
           changed[key] = value
@@ -124,7 +124,21 @@ function SettingsPage({ onBack }: SettingsPageProps) {
                       <span style={{ fontSize: 11, color: '#1890ff', marginLeft: 8 }}>已自定义</span>
                     )}
                   </div>
-                  {item.type === 'int' ? (
+                  {item.type === 'bool' ? (
+                    <Switch
+                      checked={!!editValues[key]}
+                      onChange={(val) => setEditValues({ ...editValues, [key]: val })}
+                    />
+                  ) : item.type === 'float' ? (
+                    <InputNumber
+                      value={editValues[key] as number}
+                      onChange={(val) => setEditValues({ ...editValues, [key]: val ?? item.default })}
+                      style={{ width: '100%' }}
+                      min={0}
+                      max={1}
+                      step={0.1}
+                    />
+                  ) : item.type === 'int' ? (
                     <InputNumber
                       value={editValues[key] as number}
                       onChange={(val) => setEditValues({ ...editValues, [key]: val ?? item.default })}

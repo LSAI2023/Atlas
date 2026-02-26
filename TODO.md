@@ -18,7 +18,7 @@
 - [x] **TODO 6** — 文档分片异步化：等 TODO 1（摘要）和 TODO 2（去重）合入后统一异步化
 
 ### Phase 4 — 检索大重构
-- [ ] **TODO 7** — 检索增强：依赖 TODO 1 的 summary、TODO 5 的 description、TODO 8 的配置管理
+- [x] **TODO 7** — 检索增强：依赖 TODO 1 的 summary、TODO 5 的 description、TODO 8 的配置管理
 
 ### 依赖关系
 ```

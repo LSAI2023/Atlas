@@ -29,6 +29,11 @@ CONFIGURABLE_KEYS = {
     "chunk_overlap": {"default": 100, "type": "int", "label": "分片重叠（字符数）", "group": "RAG 参数"},
     "retrieval_top_k": {"default": 5, "type": "int", "label": "检索 Top-K", "group": "RAG 参数"},
     "max_history_messages": {"default": 10, "type": "int", "label": "最大历史消息轮数", "group": "对话参数"},
+    "enable_query_rewrite": {"default": False, "type": "bool", "label": "启用查询改写", "group": "检索增强"},
+    "enable_reranking": {"default": False, "type": "bool", "label": "启用重排序", "group": "检索增强"},
+    "enable_hybrid_search": {"default": False, "type": "bool", "label": "启用混合检索（BM25+向量）", "group": "检索增强"},
+    "bm25_weight": {"default": 0.3, "type": "float", "label": "BM25 权重（0-1）", "group": "检索增强"},
+    "rerank_top_n": {"default": 15, "type": "int", "label": "重排序初筛数量", "group": "检索增强"},
 }
 
 
@@ -64,6 +69,13 @@ class Settings(BaseSettings):
 
     # ===== 对话配置 =====
     max_history_messages: int = 10  # 发送给模型的最大历史消息条数
+
+    # ===== 检索增强配置 =====
+    enable_query_rewrite: bool = False    # 启用查询改写（调用 LLM 改写用户问题提升召回率）
+    enable_reranking: bool = False        # 启用重排序（LLM 对初筛结果精排）
+    enable_hybrid_search: bool = False    # 启用混合检索（BM25 关键词 + 向量语义融合）
+    bm25_weight: float = 0.3             # 混合检索中 BM25 的权重（0-1）
+    rerank_top_n: int = 15               # 重排序初筛数量（粗筛后取 Top-N 送入重排序）
 
     @model_validator(mode='before')
     @classmethod
@@ -115,6 +127,13 @@ class Settings(BaseSettings):
                 expected_type = CONFIGURABLE_KEYS[key]["type"]
                 if expected_type == "int":
                     value = int(value)
+                elif expected_type == "float":
+                    value = float(value)
+                elif expected_type == "bool":
+                    if isinstance(value, str):
+                        value = value.lower() in ("true", "1", "yes")
+                    else:
+                        value = bool(value)
                 setattr(self, key, value)
 
     class Config:

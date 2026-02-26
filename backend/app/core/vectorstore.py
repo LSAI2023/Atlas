@@ -212,6 +212,58 @@ class VectorStore:
             pass
         return None
 
+    def get_all_chunks_text(
+        self, filter_document_ids: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取指定文档范围内的所有文本片段（用于 BM25 检索构建语料库）。
+
+        Args:
+            filter_document_ids: 限定文档 ID 列表
+
+        Returns:
+            片段列表，每项包含 content 和 metadata
+        """
+        where_filter = None
+        if filter_document_ids:
+            where_filter = {"document_id": {"$in": filter_document_ids}}
+
+        results = self.collection.get(
+            where=where_filter,
+            include=["documents", "metadatas"],
+        )
+
+        chunks = []
+        if results["documents"]:
+            for i, doc in enumerate(results["documents"]):
+                chunks.append({
+                    "content": doc,
+                    "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                })
+        return chunks
+
+    def get_adjacent_chunks(
+        self, document_id: str, chunk_index: int
+    ) -> List[Dict[str, Any]]:
+        """
+        获取指定片段的相邻片段（前一个和后一个），用于上下文扩展。
+
+        Args:
+            document_id: 文档 ID
+            chunk_index: 当前片段索引
+
+        Returns:
+            相邻片段列表（可能为空、1个或2个）
+        """
+        adjacent = []
+        for idx in [chunk_index - 1, chunk_index + 1]:
+            if idx < 0:
+                continue
+            chunk = self.get_chunk_by_index(document_id, idx)
+            if chunk:
+                adjacent.append(chunk)
+        return adjacent
+
     def count(self) -> int:
         """返回集合中的总片段数量。"""
         return self.collection.count()

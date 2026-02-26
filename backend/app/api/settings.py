@@ -47,6 +47,10 @@ async def get_settings(session: AsyncSession = Depends(get_session)):
         # 确保类型正确返回
         if meta["type"] == "int":
             current_value = int(current_value)
+        elif meta["type"] == "float":
+            current_value = float(current_value)
+        elif meta["type"] == "bool":
+            current_value = bool(current_value)
         result[key] = {
             "current": current_value,
             "default": meta["default"],
@@ -80,6 +84,16 @@ async def update_settings(
                 value = int(value)
             except (ValueError, TypeError):
                 continue
+        elif meta["type"] == "float":
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                continue
+        elif meta["type"] == "bool":
+            if isinstance(value, str):
+                value = value.lower() in ("true", "1", "yes")
+            else:
+                value = bool(value)
 
         # 持久化到数据库
         await crud.upsert_setting(session, key, str(value))
