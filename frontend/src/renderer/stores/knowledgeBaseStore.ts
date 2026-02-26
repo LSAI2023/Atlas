@@ -34,6 +34,7 @@ interface KnowledgeBaseState {
 
   fetchKnowledgeBases: () => Promise<void>                              // 拉取知识库列表
   createKnowledgeBase: (name: string, description?: string) => Promise<KnowledgeBase>  // 创建知识库
+  updateKnowledgeBase: (id: string, data: { name?: string; description?: string }) => Promise<void>  // 更新知识库
   deleteKnowledgeBase: (id: string) => Promise<void>                    // 删除知识库
   selectKnowledgeBase: (id: string) => Promise<void>                    // 选中知识库并加载文档
   clearCurrentKnowledgeBase: () => void                                 // 清除当前选中
@@ -79,6 +80,19 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
       return kb
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
+      throw error
+    }
+  },
+
+  /** 更新知识库名称和描述 */
+  updateKnowledgeBase: async (id: string, data: { name?: string; description?: string }) => {
+    try {
+      const updated = await knowledgeBaseApi.update(id, data)
+      set((state) => ({
+        knowledgeBases: state.knowledgeBases.map((kb) => kb.id === id ? updated : kb),
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message })
       throw error
     }
   },

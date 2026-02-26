@@ -23,7 +23,7 @@ from app.config import settings
 RAG_SYSTEM_PROMPT = """你是一个知识库助手。请根据以下参考资料回答用户问题。
 如果参考资料中没有相关信息，请明确告知用户"根据现有资料，我无法找到相关信息"。
 回答时请保持准确、简洁，并尽可能引用参考资料中的内容。
-
+{kb_description}
 ## 参考资料
 {context}"""
 
@@ -110,6 +110,7 @@ class RAGService:
         history_messages: Optional[List[Dict]] = None,
         document_ids: Optional[List[str]] = None,
         model: Optional[str] = None,
+        kb_descriptions: Optional[List[str]] = None,
     ) -> AsyncGenerator[Dict[str, str], None]:
         """
         流式生成回答。
@@ -133,7 +134,14 @@ class RAGService:
                 document_ids=document_ids,
             )
             context = self.build_context(retrieved_chunks)
-            system_prompt = RAG_SYSTEM_PROMPT.format(context=context)
+            # 构建知识库背景描述段落
+            kb_desc_section = ""
+            if kb_descriptions:
+                kb_desc_section = "\n## 知识库背景\n" + "\n".join(kb_descriptions) + "\n"
+            system_prompt = RAG_SYSTEM_PROMPT.format(
+                context=context,
+                kb_description=kb_desc_section,
+            )
         else:
             # 普通对话模式
             system_prompt = PLAIN_CHAT_SYSTEM_PROMPT

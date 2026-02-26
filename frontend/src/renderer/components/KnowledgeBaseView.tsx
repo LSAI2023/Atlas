@@ -8,13 +8,15 @@
  * - 文档删除：带确认弹窗
  */
 
-import { Upload, Tag, Popconfirm, Spin, Drawer, message } from 'antd'
+import { useState } from 'react'
+import { Upload, Tag, Popconfirm, Spin, Drawer, message, Modal, Input } from 'antd'
 import {
   InboxOutlined,
   EyeOutlined,
   DeleteOutlined,
   FileTextOutlined,
   ArrowLeftOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import XMarkdown from '@ant-design/x-markdown'
@@ -32,10 +34,38 @@ function KnowledgeBaseView() {
     deleteDocument,
     fetchDocumentDetail,
     clearPreview,
+    updateKnowledgeBase,
   } = useKnowledgeBaseStore()
+
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editDesc, setEditDesc] = useState('')
 
   // 获取当前选中的知识库信息
   const currentKB = knowledgeBases.find((kb) => kb.id === currentKnowledgeBaseId)
+
+  /** 打开编辑弹窗 */
+  const openEditModal = () => {
+    if (!currentKB) return
+    setEditName(currentKB.name)
+    setEditDesc(currentKB.description || '')
+    setEditModalOpen(true)
+  }
+
+  /** 保存编辑 */
+  const handleEditSave = async () => {
+    if (!currentKB || !editName.trim()) return
+    try {
+      await updateKnowledgeBase(currentKB.id, {
+        name: editName.trim(),
+        description: editDesc.trim(),
+      })
+      setEditModalOpen(false)
+      message.success('知识库已更新')
+    } catch {
+      message.error('更新失败')
+    }
+  }
 
   /** 文件上传配置 */
   const uploadProps: UploadProps = {
@@ -83,6 +113,11 @@ function KnowledgeBaseView() {
               {currentKB.description}
             </span>
           )}
+          <EditOutlined
+            onClick={openEditModal}
+            style={{ color: '#999', fontSize: 13, marginLeft: 8, cursor: 'pointer' }}
+            title="编辑知识库"
+          />
         </div>
       </div>
 
@@ -221,6 +256,35 @@ function KnowledgeBaseView() {
           <Spin tip="加载中..." />
         </div>
       )}
+
+      {/* 编辑知识库弹窗 */}
+      <Modal
+        title="编辑知识库"
+        open={editModalOpen}
+        onOk={handleEditSave}
+        onCancel={() => setEditModalOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        okButtonProps={{ disabled: !editName.trim() }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>名称</div>
+          <Input
+            placeholder="知识库名称"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>描述（可选）</div>
+          <Input.TextArea
+            placeholder="描述知识库的内容和用途，有助于 AI 更好地理解和检索"
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+            rows={3}
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

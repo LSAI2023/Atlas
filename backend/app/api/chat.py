@@ -47,6 +47,7 @@ async def generate_sse_stream(
     session: AsyncSession,
     document_ids: Optional[List[str]] = None,
     model: Optional[str] = None,
+    kb_descriptions: Optional[List[str]] = None,
 ) -> AsyncGenerator[str, None]:
     """
     生成 SSE（Server-Sent Events）流式响应。
@@ -86,6 +87,7 @@ async def generate_sse_stream(
             history_messages=history_messages,
             document_ids=document_ids,
             model=model,
+            kb_descriptions=kb_descriptions,
         ):
             content = chunk.get("content", "")
             reasoning = chunk.get("reasoning", "")
@@ -140,12 +142,18 @@ async def chat(
 
     # 将知识库 ID 解析为具体的文档 ID 列表
     document_ids = None
+    kb_descriptions = []
     if request.knowledge_base_ids:
         document_ids = await crud.get_document_ids_for_knowledge_bases(
             session, request.knowledge_base_ids
         )
         if not document_ids:
             document_ids = None  # 知识库中无文档时退回到普通对话模式
+        # 获取知识库描述，用于注入 RAG 系统提示词
+        for kb_id in request.knowledge_base_ids:
+            kb = await crud.get_knowledge_base(session, kb_id)
+            if kb and kb.description:
+                kb_descriptions.append(f"- {kb.name}: {kb.description}")
 
     # 返回 SSE 流式响应
     return StreamingResponse(
@@ -155,6 +163,7 @@ async def chat(
             session=session,
             document_ids=document_ids,
             model=request.model,
+            kb_descriptions=kb_descriptions,
         ),
         media_type="text/event-stream",
         headers={
