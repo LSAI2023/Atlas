@@ -161,12 +161,13 @@ class VectorStore:
         self.collection.delete(ids=results["ids"])
         return len(results["ids"])
 
-    def get_document_chunks(self, document_id: str) -> List[Dict]:
+    def get_document_chunks(self, document_id: str, include_summary: bool = False) -> List[Dict]:
         """
         获取某个文档的所有片段内容和元数据（用于预览）。
 
         Args:
             document_id: 文档 ID
+            include_summary: 是否包含摘要片段（type=summary）
 
         Returns:
             片段列表，每项包含 content 和 metadata
@@ -179,11 +180,16 @@ class VectorStore:
         chunks = []
         if results["documents"]:
             for i, doc in enumerate(results["documents"]):
+                metadata = results["metadatas"][i] if results["metadatas"] else {}
+                if not include_summary and metadata.get("type") == "summary":
+                    continue
                 chunks.append({
                     "content": doc,
-                    "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                    "metadata": metadata,
                 })
 
+        # 按 chunk_index 稳定排序，确保预览顺序与原文一致
+        chunks.sort(key=lambda x: x.get("metadata", {}).get("chunk_index", 0))
         return chunks
 
     def get_chunk_by_index(self, document_id: str, chunk_index: int) -> Optional[Dict]:
@@ -197,6 +203,22 @@ class VectorStore:
         Returns:
             包含 content 和 metadata 的字典，未找到时返回 None
         """
+        # 约定：chunk_index=-1 表示摘要片段
+        if chunk_index == -1:
+            try:
+                results = self.collection.get(
+                    where={"$and": [{"document_id": document_id}, {"type": "summary"}]},
+                    include=["documents", "metadatas"],
+                )
+                if results["documents"] and results["documents"][0]:
+                    return {
+                        "content": results["documents"][0],
+                        "metadata": results["metadatas"][0] if results["metadatas"] else {},
+                    }
+            except Exception:
+                pass
+            return None
+
         chunk_id = f"{document_id}_{chunk_index}"
         try:
             results = self.collection.get(

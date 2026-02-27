@@ -24,9 +24,11 @@ def _is_packaged() -> bool:
 CONFIGURABLE_KEYS = {
     "ollama_base_url": {"default": "http://127.0.0.1:11434", "type": "string", "label": "Ollama 服务地址", "group": "模型配置"},
     "ollama_chat_model": {"default": "qwen3:14b", "type": "string", "label": "对话模型", "group": "模型配置"},
+    "ollama_summary_model": {"default": "qwen2.5:14b", "type": "string", "label": "摘要模型", "group": "模型配置"},
     "ollama_embedding_model": {"default": "qwen3-embedding:4b", "type": "string", "label": "嵌入模型", "group": "模型配置"},
     "chunk_size": {"default": 600, "type": "int", "label": "分片大小（字符数）", "group": "RAG 参数"},
     "chunk_overlap": {"default": 100, "type": "int", "label": "分片重叠（字符数）", "group": "RAG 参数"},
+    "chunk_min_chars": {"default": 60, "type": "int", "label": "最小分片字符数", "group": "RAG 参数"},
     "retrieval_top_k": {"default": 5, "type": "int", "label": "检索 Top-K", "group": "RAG 参数"},
     "max_history_messages": {"default": 10, "type": "int", "label": "最大历史消息轮数", "group": "对话参数"},
     "enable_query_rewrite": {"default": False, "type": "bool", "label": "启用查询改写", "group": "检索增强"},
@@ -60,11 +62,13 @@ class Settings(BaseSettings):
     # ===== Ollama 模型配置 =====
     ollama_base_url: str = "http://127.0.0.1:11434"        # Ollama 服务地址
     ollama_chat_model: str = "qwen3:14b"                   # 对话生成模型
+    ollama_summary_model: str = "qwen2.5:14b"              # 文档摘要模型
     ollama_embedding_model: str = "qwen3-embedding:4b"     # 文本向量化模型
 
     # ===== RAG 检索增强生成配置 =====
     chunk_size: int = 600          # 文档分块大小（字符数）
     chunk_overlap: int = 100       # 相邻分块的重叠字符数，保持上下文连贯性
+    chunk_min_chars: int = 60      # 分块后最小字符数（过短片段会合并）
     retrieval_top_k: int = 5       # 语义检索时返回最相似的 Top-K 个片段
 
     # ===== 对话配置 =====

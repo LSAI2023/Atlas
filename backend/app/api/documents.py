@@ -76,6 +76,7 @@ async def _process_document(doc_id: str, file_path: Path, filename: str):
                 summary_prompt = f"请用中文为以下文档内容生成一份简明摘要（200字以内），概括文档的主题、关键内容和核心要点：\n\n{summary_input}"
                 summary_response = await ollama_service.chat(
                     messages=[{"role": "user", "content": summary_prompt}],
+                    model=settings.ollama_summary_model,
                 )
                 summary_text = summary_response.get("content", "").strip()
                 if summary_text:

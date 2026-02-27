@@ -52,6 +52,7 @@ export interface Document {
   file_type: string
   file_size: number
   chunk_count: number
+  summary?: string
   status: 'pending' | 'processing' | 'completed' | 'failed'  // 文档处理状态
   knowledge_base_id: string
   created_at: string
@@ -65,6 +66,7 @@ export interface DocumentChunk {
     filename: string
     chunk_index: number
     total_chunks: number
+    type?: string
   }
 }
 

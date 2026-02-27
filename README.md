@@ -24,7 +24,7 @@
 |------|------|
 | **前端** | Electron 28 + React 18 + TypeScript + Ant Design 6 + @ant-design/x + Zustand |
 | **后端** | Python + FastAPI + SQLAlchemy (async) + aiosqlite |
-| **LLM** | Ollama (默认 qwen3:14b 对话 / qwen3-embedding:4b 嵌入) |
+| **LLM** | Ollama (默认 qwen3:14b 对话 / qwen2.5:14b 摘要 / qwen3-embedding:4b 嵌入) |
 | **向量库** | ChromaDB |
 | **关系库** | SQLite |
 | **混合检索** | rank_bm25 + jieba 分词 |
@@ -38,6 +38,7 @@
 2. 拉取所需模型：
    ```bash
    ollama pull qwen3:14b
+   ollama pull qwen2.5:14b
    ollama pull qwen3-embedding:4b
    ```
 
@@ -55,7 +56,7 @@ source .venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 
 # 启动服务
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### 启动前端
@@ -99,7 +100,7 @@ npm run electron:dev
 | POST | `/api/documents/upload` | 上传文档（异步处理，即时返回） |
 | GET | `/api/documents` | 获取文档列表（支持按知识库过滤） |
 | GET | `/api/documents/{id}` | 获取文档详情（含分片内容） |
-| GET | `/api/documents/{id}/chunks/{index}` | 获取单个分片内容（按需加载） |
+| GET | `/api/documents/{id}/chunks/{index}` | 获取单个分片内容（按需加载，`index=-1` 返回摘要） |
 | POST | `/api/documents/{id}/reindex` | 重新分片（用于失败重试） |
 | DELETE | `/api/documents/{id}` | 删除文档（同时清理向量和文件） |
 
@@ -181,7 +182,7 @@ Atlas/
 ## 支持的文档格式
 
 - PDF (.pdf) — PyMuPDF 逐页提取
-- Word (.docx) — python-docx 段落提取
+- Word (.docx) — mammoth 转 Markdown（失败时回退 python-docx）
 - 文本 (.txt) — 自动检测编码
 - Markdown (.md)
 
@@ -193,9 +194,11 @@ Atlas/
 |------|--------|--------|------|
 | 模型配置 | ollama_base_url | http://127.0.0.1:11434 | Ollama 服务地址 |
 | 模型配置 | ollama_chat_model | qwen3:14b | 对话模型 |
+| 模型配置 | ollama_summary_model | qwen2.5:14b | 摘要模型 |
 | 模型配置 | ollama_embedding_model | qwen3-embedding:4b | 嵌入模型 |
 | RAG 参数 | chunk_size | 600 | 分片大小（字符数） |
 | RAG 参数 | chunk_overlap | 100 | 分片重叠（字符数） |
+| RAG 参数 | chunk_min_chars | 60 | 最小分片字符数（过短分片自动合并） |
 | RAG 参数 | retrieval_top_k | 5 | 检索 Top-K |
 | 对话参数 | max_history_messages | 10 | 最大历史消息轮数 |
 | 检索增强 | enable_query_rewrite | false | 启用查询改写 |

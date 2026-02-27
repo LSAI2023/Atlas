@@ -8,15 +8,14 @@
  * - 文档删除：带确认弹窗
  */
 
-import { useState, useEffect, useRef } from 'react'
-import { Upload, Tag, Popconfirm, Spin, Drawer, message, Modal, Input, Button } from 'antd'
+import { useEffect, useRef } from 'react'
+import { Upload, Tag, Popconfirm, Spin, Drawer, message, Button } from 'antd'
 import {
   InboxOutlined,
   EyeOutlined,
   DeleteOutlined,
   FileTextOutlined,
   ArrowLeftOutlined,
-  EditOutlined,
   ReloadOutlined,
   LoadingOutlined,
 } from '@ant-design/icons'
@@ -38,12 +37,8 @@ function KnowledgeBaseView() {
     refreshDocuments,
     fetchDocumentDetail,
     clearPreview,
-    updateKnowledgeBase,
   } = useKnowledgeBaseStore()
 
-  const [editModalOpen, setEditModalOpen] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editDesc, setEditDesc] = useState('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // 当文档列表中存在 pending 或 processing 状态时，自动轮询刷新
@@ -67,29 +62,6 @@ function KnowledgeBaseView() {
 
   // 获取当前选中的知识库信息
   const currentKB = knowledgeBases.find((kb) => kb.id === currentKnowledgeBaseId)
-
-  /** 打开编辑弹窗 */
-  const openEditModal = () => {
-    if (!currentKB) return
-    setEditName(currentKB.name)
-    setEditDesc(currentKB.description || '')
-    setEditModalOpen(true)
-  }
-
-  /** 保存编辑 */
-  const handleEditSave = async () => {
-    if (!currentKB || !editName.trim()) return
-    try {
-      await updateKnowledgeBase(currentKB.id, {
-        name: editName.trim(),
-        description: editDesc.trim(),
-      })
-      setEditModalOpen(false)
-      message.success('知识库已更新')
-    } catch {
-      message.error('更新失败')
-    }
-  }
 
   /** 文件上传配置 */
   const uploadProps: UploadProps = {
@@ -130,18 +102,11 @@ function KnowledgeBaseView() {
     <div className="main-content">
       {/* 顶部：知识库名称和描述 */}
       <div className="main-header">
-        <div className="kb-view-title">
-          <span style={{ fontWeight: 600, fontSize: 16 }}>{currentKB.name}</span>
-          {currentKB.description && (
-            <span style={{ color: '#999', fontSize: 13, marginLeft: 12 }}>
-              {currentKB.description}
-            </span>
-          )}
-          <EditOutlined
-            onClick={openEditModal}
-            style={{ color: '#999', fontSize: 13, marginLeft: 8, cursor: 'pointer' }}
-            title="编辑知识库"
-          />
+        <div className="kb-view-title" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+          <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.4 }}>{currentKB.name}</div>
+          <div style={{ color: '#999', fontSize: 13, lineHeight: 1.4 }}>
+            {currentKB.description || '暂无备注'}
+          </div>
         </div>
       </div>
 
@@ -284,11 +249,21 @@ function KnowledgeBaseView() {
             </div>
             {/* 分片内容列表 */}
             <div className="document-preview-chunks">
+              {previewDocument.summary && (
+                <div className="document-chunk-card">
+                  <div className="document-chunk-header">文档摘要</div>
+                  <div className="document-chunk-content">
+                    <XMarkdown content={previewDocument.summary} />
+                  </div>
+                </div>
+              )}
               {previewDocument.chunks && previewDocument.chunks.length > 0 ? (
                 previewDocument.chunks.map((chunk, index) => (
                   <div key={index} className="document-chunk-card">
                     <div className="document-chunk-header">
-                      片段 {chunk.metadata.chunk_index + 1} / {chunk.metadata.total_chunks}
+                      片段 {typeof chunk.metadata.chunk_index === 'number' ? chunk.metadata.chunk_index + 1 : index + 1}
+                      {' / '}
+                      {typeof chunk.metadata.total_chunks === 'number' ? chunk.metadata.total_chunks : previewDocument.chunks.length}
                     </div>
                     <div className="document-chunk-content">
                       <XMarkdown content={chunk.content} />
@@ -312,34 +287,6 @@ function KnowledgeBaseView() {
         </div>
       )}
 
-      {/* 编辑知识库弹窗 */}
-      <Modal
-        title="编辑知识库"
-        open={editModalOpen}
-        onOk={handleEditSave}
-        onCancel={() => setEditModalOpen(false)}
-        okText="保存"
-        cancelText="取消"
-        okButtonProps={{ disabled: !editName.trim() }}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>名称</div>
-          <Input
-            placeholder="知识库名称"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-        </div>
-        <div>
-          <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>描述（可选）</div>
-          <Input.TextArea
-            placeholder="描述知识库的内容和用途，有助于 AI 更好地理解和检索"
-            value={editDesc}
-            onChange={(e) => setEditDesc(e.target.value)}
-            rows={3}
-          />
-        </div>
-      </Modal>
     </div>
   )
 }

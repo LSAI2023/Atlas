@@ -255,7 +255,17 @@ function ChatPanel({ conversationId }: ChatPanelProps) {
   /** 按需加载分片内容 */
   const handleExpandChunk = async (docId: string, chunkIndex: number) => {
     const key = `${docId}_${chunkIndex}`
-    if (expandedChunks[key] || loadingChunks[key]) return
+    // 再次点击同一引用时，收起当前已展开内容
+    if (expandedChunks[key]) {
+      setExpandedChunks((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      return
+    }
+
+    if (loadingChunks[key]) return
     setLoadingChunks((prev) => ({ ...prev, [key]: true }))
     try {
       const data = await documentApi.getChunk(docId, chunkIndex)
