@@ -16,7 +16,7 @@ from typing import Optional, List
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import KnowledgeBase, Document, Conversation, Message
+from app.models import KnowledgeBase, Document, Conversation, Message, Setting
 
 
 # ==========================
@@ -48,7 +48,8 @@ async def get_knowledge_base(session: AsyncSession, kb_id: str) -> Optional[Know
 
 async def get_all_knowledge_bases(session: AsyncSession) -> List[KnowledgeBase]:
     """获取所有知识库，按更新时间倒序排列。"""
-    result = await session.execute(select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc()))
+    result = await session.execute(select(KnowledgeBase)
+                                   .order_by(KnowledgeBase.updated_at.desc()))
     return list(result.scalars().all())
 
 
@@ -110,6 +111,7 @@ async def create_document(
     file_size: int,
     knowledge_base_id: str,
     chunk_count: int = 0,
+    file_hash: Optional[str] = None,
 ) -> Document:
     """创建文档记录，自动生成 UUID。"""
     doc = Document(
@@ -119,6 +121,7 @@ async def create_document(
         file_size=file_size,
         knowledge_base_id=knowledge_base_id,
         chunk_count=chunk_count,
+        file_hash=file_hash,
     )
     session.add(doc)
     await session.commit()
@@ -129,6 +132,19 @@ async def create_document(
 async def get_document(session: AsyncSession, doc_id: str) -> Optional[Document]:
     """根据 ID 查询文档。"""
     result = await session.execute(select(Document).where(Document.id == doc_id))
+    return result.scalar_one_or_none()
+
+
+async def get_document_by_hash(
+    session: AsyncSession, knowledge_base_id: str, file_hash: str
+) -> Optional[Document]:
+    """根据文件哈希在指定知识库内查询文档（用于去重检测）。"""
+    result = await session.execute(
+        select(Document).where(
+            Document.knowledge_base_id == knowledge_base_id,
+            Document.file_hash == file_hash,
+        )
+    )
     return result.scalar_one_or_none()
 
 
@@ -150,6 +166,30 @@ async def update_document_chunk_count(
     doc = await get_document(session, doc_id)
     if doc:
         doc.chunk_count = chunk_count
+        await session.commit()
+        await session.refresh(doc)
+    return doc
+
+
+async def update_document_summary(
+    session: AsyncSession, doc_id: str, summary: str
+) -> Optional[Document]:
+    """更新文档的摘要（摘要生成完成后调用）。"""
+    doc = await get_document(session, doc_id)
+    if doc:
+        doc.summary = summary
+        await session.commit()
+        await session.refresh(doc)
+    return doc
+
+
+async def update_document_status(
+    session: AsyncSession, doc_id: str, status: str
+) -> Optional[Document]:
+    """更新文档的处理状态。"""
+    doc = await get_document(session, doc_id)
+    if doc:
+        doc.status = status
         await session.commit()
         await session.refresh(doc)
     return doc
@@ -227,6 +267,8 @@ async def create_message(
     conversation_id: str,
     role: str,
     content: str,
+    reasoning: Optional[str] = None,
+    references: Optional[str] = None,
 ) -> Message:
     """
     创建消息记录。
@@ -239,6 +281,8 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        reasoning=reasoning,
+        references=references,
     )
     session.add(msg)
 
@@ -285,3 +329,50 @@ async def get_recent_messages(
     result = await session.execute(query)
     messages = list(result.scalars().all())
     return list(reversed(messages))  # 反转为时间正序
+
+
+# ==========================
+#  配置（Setting）CRUD
+# ==========================
+
+async def get_setting(session: AsyncSession, key: str) -> Optional[Setting]:
+    """根据 key 查询单个配置项。"""
+    result = await session.execute(select(Setting).where(Setting.key == key))
+    return result.scalar_one_or_none()
+
+
+async def get_all_settings(session: AsyncSession) -> List[Setting]:
+    """获取所有用户自定义配置项。"""
+    result = await session.execute(select(Setting))
+    return list(result.scalars().all())
+
+
+async def upsert_setting(session: AsyncSession, key: str, value: str) -> Setting:
+    """插入或更新配置项。"""
+    existing = await get_setting(session, key)
+    if existing:
+        existing.value = value
+        existing.updated_at = datetime.utcnow()
+    else:
+        existing = Setting(key=key, value=value)
+        session.add(existing)
+    await session.commit()
+    await session.refresh(existing)
+    return existing
+
+
+async def delete_setting(session: AsyncSession, key: str) -> bool:
+    """删除单个配置项。"""
+    setting = await get_setting(session, key)
+    if setting:
+        await session.delete(setting)
+        await session.commit()
+        return True
+    return False
+
+
+async def delete_all_settings(session: AsyncSession) -> int:
+    """删除所有配置项，返回删除数量。"""
+    result = await session.execute(delete(Setting))
+    await session.commit()
+    return result.rowcount

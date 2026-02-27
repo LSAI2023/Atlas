@@ -8,6 +8,7 @@ __pycache__/
 *.so
 .Python
 .venv/
+.venv.py39.bak/
 venv/
 ENV/
 env/
@@ -33,3 +34,6 @@ build/
 
 # Electron
 out/
+
+# Build cache
+.pyinstaller/

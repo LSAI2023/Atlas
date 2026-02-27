@@ -34,12 +34,15 @@ interface KnowledgeBaseState {
 
   fetchKnowledgeBases: () => Promise<void>                              // 拉取知识库列表
   createKnowledgeBase: (name: string, description?: string) => Promise<KnowledgeBase>  // 创建知识库
+  updateKnowledgeBase: (id: string, data: { name?: string; description?: string }) => Promise<void>  // 更新知识库
   deleteKnowledgeBase: (id: string) => Promise<void>                    // 删除知识库
   selectKnowledgeBase: (id: string) => Promise<void>                    // 选中知识库并加载文档
   clearCurrentKnowledgeBase: () => void                                 // 清除当前选中
   toggleKnowledgeBaseSelection: (id: string) => void                    // 切换知识库的勾选状态
   uploadDocument: (file: File) => Promise<Document>                     // 上传文档
   deleteDocument: (id: string) => Promise<void>                         // 删除文档
+  reindexDocument: (id: string) => Promise<void>                        // 重新分片失败文档
+  refreshDocuments: () => Promise<void>                                 // 刷新当前知识库文档列表
   fetchDocumentDetail: (id: string) => Promise<void>                    // 获取文档详情（预览）
   clearPreview: () => void                                              // 关闭预览
 }
@@ -79,6 +82,19 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
       return kb
     } catch (error) {
       set({ error: (error as Error).message, loading: false })
+      throw error
+    }
+  },
+
+  /** 更新知识库名称和描述 */
+  updateKnowledgeBase: async (id: string, data: { name?: string; description?: string }) => {
+    try {
+      const updated = await knowledgeBaseApi.update(id, data)
+      set((state) => ({
+        knowledgeBases: state.knowledgeBases.map((kb) => kb.id === id ? updated : kb),
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message })
       throw error
     }
   },
@@ -159,6 +175,33 @@ export const useKnowledgeBaseStore = create<KnowledgeBaseState>((set, get) => ({
       }))
     } catch (error) {
       set({ error: (error as Error).message })
+    }
+  },
+
+  /** 重新分片失败的文档 */
+  reindexDocument: async (id: string) => {
+    try {
+      await documentApi.reindex(id)
+      // 更新本地状态为 pending
+      set((state) => ({
+        currentDocuments: state.currentDocuments.map((d) =>
+          d.id === id ? { ...d, status: 'pending' as const } : d
+        ),
+      }))
+    } catch (error) {
+      set({ error: (error as Error).message })
+    }
+  },
+
+  /** 刷新当前知识库的文档列表（用于轮询更新处理状态） */
+  refreshDocuments: async () => {
+    const { currentKnowledgeBaseId } = get()
+    if (!currentKnowledgeBaseId) return
+    try {
+      const detail = await knowledgeBaseApi.get(currentKnowledgeBaseId)
+      set({ currentDocuments: detail.documents })
+    } catch {
+      // 静默失败，不影响用户操作
     }
   },
 

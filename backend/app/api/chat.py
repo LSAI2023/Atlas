@@ -12,7 +12,7 @@
 """
 
 import json
-from typing import AsyncGenerator, Optional, List
+from typing import AsyncGenerator, Optional, List, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -47,6 +47,8 @@ async def generate_sse_stream(
     session: AsyncSession,
     document_ids: Optional[List[str]] = None,
     model: Optional[str] = None,
+    kb_descriptions: Optional[List[str]] = None,
+    kb_map: Optional[Dict[str, Dict]] = None,
 ) -> AsyncGenerator[str, None]:
     """
     生成 SSE（Server-Sent Events）流式响应。
@@ -80,13 +82,21 @@ async def generate_sse_stream(
     # 流式生成并推送回答
     full_content = []     # 累积完整回答内容
     full_reasoning = []   # 累积完整思考过程
+    references_data = None  # 引用信息
     try:
         async for chunk in rag_service.generate_stream(
             query=query,
             history_messages=history_messages,
             document_ids=document_ids,
             model=model,
+            kb_descriptions=kb_descriptions,
+            kb_map=kb_map,
         ):
+            # 检查是否为引用信息
+            if "references" in chunk:
+                references_data = chunk["references"]
+                continue
+
             content = chunk.get("content", "")
             reasoning = chunk.get("reasoning", "")
             if content:
@@ -96,17 +106,24 @@ async def generate_sse_stream(
             # 以 SSE 格式推送每个片段
             yield f"data: {json.dumps({'content': content, 'reasoning': reasoning, 'done': False})}\n\n"
 
-        # 生成完毕，将完整回答保存到数据库（思考过程不持久化）
+        # 生成完毕，将完整回答保存到数据库（包含思考过程和引用）
         complete_response = "".join(full_content)
+        complete_reasoning = "".join(full_reasoning) or None
+        references_json = json.dumps(references_data) if references_data else None
         await crud.create_message(
             session=session,
             conversation_id=conversation_id,
             role="assistant",
             content=complete_response,
+            reasoning=complete_reasoning,
+            references=references_json,
         )
 
-        # 发送完成信号
-        yield f"data: {json.dumps({'content': '', 'reasoning': '', 'done': True})}\n\n"
+        # 发送完成信号（附带引用信息）
+        done_data = {'content': '', 'reasoning': '', 'done': True}
+        if references_data:
+            done_data['references'] = references_data
+        yield f"data: {json.dumps(done_data)}\n\n"
 
     except Exception as e:
         # 发生错误时通过 SSE 推送错误信息
@@ -138,12 +155,27 @@ async def chat(
 
     # 将知识库 ID 解析为具体的文档 ID 列表
     document_ids = None
+    kb_descriptions = []
+    kb_map = {}  # doc_id -> {knowledge_base_id, knowledge_base_name}
     if request.knowledge_base_ids:
         document_ids = await crud.get_document_ids_for_knowledge_bases(
             session, request.knowledge_base_ids
         )
         if not document_ids:
             document_ids = None  # 知识库中无文档时退回到普通对话模式
+        # 获取知识库描述和文档映射
+        for kb_id in request.knowledge_base_ids:
+            kb = await crud.get_knowledge_base(session, kb_id)
+            if kb:
+                if kb.description:
+                    kb_descriptions.append(f"- {kb.name}: {kb.description}")
+                # 构建文档到知识库的映射
+                kb_docs = await crud.get_knowledge_base_documents(session, kb_id)
+                for doc in kb_docs:
+                    kb_map[doc.id] = {
+                        "knowledge_base_id": kb.id,
+                        "knowledge_base_name": kb.name,
+                    }
 
     # 返回 SSE 流式响应
     return StreamingResponse(
@@ -153,6 +185,8 @@ async def chat(
             session=session,
             document_ids=document_ids,
             model=request.model,
+            kb_descriptions=kb_descriptions,
+            kb_map=kb_map,
         ),
         media_type="text/event-stream",
         headers={

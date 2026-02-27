@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Bash(npm install)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(uvicorn:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:x.ant.design)",
+      "WebSearch",
+      "Bash(pgrep:*)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/frontend && npx tsc --noEmit 2>&1)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/frontend && npx vite build 2>&1)",
+      "Bash(ls:*)",
+      "Bash(.venv/bin/python3:*)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/frontend && npm install @ant-design/x 2>&1)",
+      "Bash(tail:*)",
+      "Bash(gh auth:*)",
+      "Bash(git add:*)",
+      "Bash(head:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git checkout:*)",
+      "Bash(python3:*)",
+      "Bash(git commit:*)",
+      "Bash(grep:*)",
+      "Bash(bash:*)",
+      "Bash(npm run:*)",
+      "Bash(npx electron-builder:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/frontend && rm -rf out/ && npx electron-builder --mac 2>&1)",
+      "Bash(wc:*)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/backend && source .venv/bin/activate && python -c \"\nimport asyncio\nfrom app.db.database import init_db, async_session_maker\nfrom app.db import crud\nfrom app.config import settings, CONFIGURABLE_KEYS\n\nasync def test\\(\\):\n    await init_db\\(\\)\n    async with async_session_maker\\(\\) as session:\n        # Test upsert\n        s = await crud.upsert_setting\\(session, 'chunk_size', '800'\\)\n        print\\(f'Upsert OK: {s.key}={s.value}'\\)\n        \n        # Test get_all\n        all_s = await crud.get_all_settings\\(session\\)\n        print\\(f'Get all OK: {len\\(all_s\\)} settings'\\)\n        \n        # Test apply\n        settings.apply_user_settings\\({'chunk_size': '800'}\\)\n        print\\(f'Apply OK: chunk_size={settings.chunk_size}'\\)\n        \n        # Test delete\n        await crud.delete_setting\\(session, 'chunk_size'\\)\n        all_s = await crud.get_all_settings\\(session\\)\n        print\\(f'Delete OK: {len\\(all_s\\)} settings remaining'\\)\n        \n        # Reset\n        settings.apply_user_settings\\({'chunk_size': str\\(CONFIGURABLE_KEYS[\\\\\"chunk_size\\\\\"][\\\\\"default\\\\\"]\\)}\\)\n        print\\(f'Reset OK: chunk_size={settings.chunk_size}'\\)\n\nasyncio.run\\(test\\(\\)\\)\n\" 2>&1)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/backend && source .venv/bin/activate && python -c \"from app.core.rag import rag_service, RAG_SYSTEM_PROMPT; print\\('RAG import OK'\\); print\\(RAG_SYSTEM_PROMPT[:100]\\)\" 2>&1)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/backend && source .venv/bin/activate && python -c \"\nfrom app.core.vectorstore import vector_store\nfrom app.api.documents import router\nfrom app.db import crud\nprint\\('All imports OK'\\)\n\" 2>&1)",
+      "Bash(cd /Users/lsai/workspace/demo-project/Atlas/backend && source .venv/bin/activate && python -c \"\nfrom app.core.rag import rag_service\nfrom app.core.vectorstore import vector_store\nfrom app.api.documents import router\nfrom app.api.chat import router as chat_router\nprint\\('All imports OK'\\)\n\" 2>&1)",
+      "Bash(cd:*)"
+    ]
+  }
+}

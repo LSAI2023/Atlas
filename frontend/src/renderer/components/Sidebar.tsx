@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Input, message, Popconfirm } from 'antd'
+import { Input, message, Popconfirm, Modal } from 'antd'
 import {
   SearchOutlined,
   DeleteOutlined,
@@ -24,6 +24,8 @@ import {
   BookOutlined,
   PlusOutlined,
   CheckCircleFilled,
+  SettingOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import { Conversations } from '@ant-design/x'
 import type { ConversationsProps } from '@ant-design/x'
@@ -38,14 +40,18 @@ interface SidebarProps {
   mode: SidebarMode                       // 当前模式
   onModeChange: (mode: SidebarMode) => void  // 模式切换回调
   onNewChat: () => void                    // 新建对话回调
+  onOpenSettings: () => void               // 打开设置页面回调
 }
 
 type ConversationItem = GetProp<ConversationsProps, 'items'>[number]
 
-function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
+function Sidebar({ mode, onModeChange, onNewChat, onOpenSettings }: SidebarProps) {
   const [searchText, setSearchText] = useState('')        // 搜索关键词
-  const [kbNameInput, setKbNameInput] = useState('')       // 新建知识库的名称输入
-  const [showKbCreate, setShowKbCreate] = useState(false)  // 是否显示创建知识库输入框
+  const [kbModalOpen, setKbModalOpen] = useState(false)    // 知识库创建/编辑弹窗
+  const [kbModalMode, setKbModalMode] = useState<'create' | 'edit'>('create')
+  const [editingKbId, setEditingKbId] = useState<string | null>(null)
+  const [kbNameInput, setKbNameInput] = useState('')       // 弹窗中的名称
+  const [kbDescInput, setKbDescInput] = useState('')       // 弹窗中的描述
 
   const {
     conversations,
@@ -62,6 +68,7 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
     selectedKnowledgeBaseIds,
     fetchKnowledgeBases,
     createKnowledgeBase,
+    updateKnowledgeBase,
     deleteKnowledgeBase,
     selectKnowledgeBase,
     toggleKnowledgeBaseSelection,
@@ -88,13 +95,50 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
     const name = kbNameInput.trim()
     if (!name) return
     try {
-      const kb = await createKnowledgeBase(name)
+      const kb = await createKnowledgeBase(name, kbDescInput.trim() || undefined)
       setKbNameInput('')
-      setShowKbCreate(false)
+      setKbDescInput('')
+      setKbModalOpen(false)
       selectKnowledgeBase(kb.id)  // 创建后自动选中
     } catch {
       message.error('创建知识库失败')
     }
+  }
+
+  /** 编辑知识库 */
+  const handleEditKB = async () => {
+    if (!editingKbId || !kbNameInput.trim()) return
+    try {
+      await updateKnowledgeBase(editingKbId, {
+        name: kbNameInput.trim(),
+        description: kbDescInput.trim(),
+      })
+      setKbModalOpen(false)
+      setKbNameInput('')
+      setKbDescInput('')
+      setEditingKbId(null)
+      message.success('知识库已更新')
+    } catch {
+      message.error('更新知识库失败')
+    }
+  }
+
+  /** 打开创建弹窗 */
+  const openCreateModal = () => {
+    setKbModalMode('create')
+    setKbNameInput('')
+    setKbDescInput('')
+    setEditingKbId(null)
+    setKbModalOpen(true)
+  }
+
+  /** 打开编辑弹窗 */
+  const openEditModal = (kb: { id: string; name: string; description: string }) => {
+    setKbModalMode('edit')
+    setKbNameInput(kb.name)
+    setKbDescInput(kb.description || '')
+    setEditingKbId(kb.id)
+    setKbModalOpen(true)
   }
 
   /**
@@ -195,27 +239,11 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
         ) : (
           /* 知识库列表模式 */
           <div className="kb-list">
-            {/* 创建知识库按钮/输入框 */}
-            {showKbCreate ? (
-              <div className="kb-create-input">
-                <Input
-                  placeholder="知识库名称"
-                  value={kbNameInput}
-                  onChange={(e) => setKbNameInput(e.target.value)}
-                  onPressEnter={handleCreateKB}
-                  onBlur={() => {
-                    if (!kbNameInput.trim()) setShowKbCreate(false)
-                  }}
-                  autoFocus
-                  size="small"
-                />
-              </div>
-            ) : (
-              <div className="kb-create-btn" onClick={() => setShowKbCreate(true)}>
-                <PlusOutlined />
-                <span>新建知识库</span>
-              </div>
-            )}
+            {/* 创建知识库按钮 */}
+            <div className="kb-create-btn" onClick={openCreateModal}>
+              <PlusOutlined />
+              <span>新建知识库</span>
+            </div>
 
             {/* 知识库列表项 */}
             {filteredKBs.map((kb) => {
@@ -249,8 +277,16 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
                       <div className="kb-list-item-desc">{kb.description}</div>
                     )}
                   </div>
-                  {/* 删除按钮（带确认弹窗） */}
+                  {/* 操作按钮（编辑 + 删除） */}
                   <div className="kb-list-item-actions">
+                    <EditOutlined
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openEditModal(kb)
+                      }}
+                      style={{ color: '#999', fontSize: 12, marginRight: 6 }}
+                      title="编辑"
+                    />
                     <Popconfirm
                       title="删除知识库"
                       description="将同时删除所有文档，确定删除吗？"
@@ -264,6 +300,7 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
                       <DeleteOutlined
                         onClick={(e) => e.stopPropagation()}
                         style={{ color: '#999', fontSize: 12 }}
+                        title="删除"
                       />
                     </Popconfirm>
                   </div>
@@ -271,16 +308,46 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
               )
             })}
             {/* 空状态提示 */}
-            {filteredKBs.length === 0 && !showKbCreate && (
+            {filteredKBs.length === 0 && (
               <div style={{ padding: 24, textAlign: 'center', color: '#999', fontSize: 13 }}>
                 暂无知识库
               </div>
             )}
+
+            {/* 创建/编辑知识库弹窗 */}
+            <Modal
+              title={kbModalMode === 'create' ? '新建知识库' : '编辑知识库'}
+              open={kbModalOpen}
+              onOk={kbModalMode === 'create' ? handleCreateKB : handleEditKB}
+              onCancel={() => setKbModalOpen(false)}
+              okText={kbModalMode === 'create' ? '创建' : '保存'}
+              cancelText="取消"
+              okButtonProps={{ disabled: !kbNameInput.trim() }}
+            >
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>名称</div>
+                <Input
+                  placeholder="知识库名称"
+                  value={kbNameInput}
+                  onChange={(e) => setKbNameInput(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <div style={{ marginBottom: 6, fontSize: 13, color: '#333' }}>描述（可选）</div>
+                <Input.TextArea
+                  placeholder="描述知识库的内容和用途，有助于 AI 更好地理解和检索"
+                  value={kbDescInput}
+                  onChange={(e) => setKbDescInput(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </Modal>
           </div>
         )}
       </div>
 
-      {/* 底部：模式切换按钮 */}
+      {/* 底部：模式切换按钮和设置入口 */}
       <div className="sidebar-footer">
         <div className="sidebar-mode-toggle">
           <div
@@ -296,6 +363,13 @@ function Sidebar({ mode, onModeChange, onNewChat }: SidebarProps) {
           >
             <BookOutlined />
             <span>知识库</span>
+          </div>
+          <div
+            className="sidebar-mode-btn"
+            onClick={onOpenSettings}
+          >
+            <SettingOutlined />
+            <span>设置</span>
           </div>
         </div>
       </div>

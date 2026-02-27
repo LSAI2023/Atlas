@@ -15,6 +15,7 @@ import Sidebar from './components/Sidebar'
 import type { SidebarMode } from './components/Sidebar'
 import ChatPanel from './components/ChatPanel'
 import KnowledgeBaseView from './components/KnowledgeBaseView'
+import SettingsPage from './components/SettingsPage'
 import { useConversationStore } from './stores/conversationStore'
 import { useKnowledgeBaseStore } from './stores/knowledgeBaseStore'
 
@@ -22,6 +23,7 @@ function App() {
   const { currentConversationId, clearMessages } = useConversationStore()
   const { currentKnowledgeBaseId } = useKnowledgeBaseStore()
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('conversations')
+  const [showSettings, setShowSettings] = useState(false)
 
   /** 创建新对话时清空当前消息列表 */
   const handleNewChat = () => {
@@ -31,18 +33,29 @@ function App() {
   // 判断是否显示知识库管理视图
   const showKnowledgeBaseView = sidebarMode === 'knowledgeBases' && currentKnowledgeBaseId
 
+  // 渲染主视图
+  const renderMainView = () => {
+    if (showSettings) {
+      return <SettingsPage onBack={() => setShowSettings(false)} />
+    }
+    if (showKnowledgeBaseView) {
+      return <KnowledgeBaseView />
+    }
+    return <ChatPanel conversationId={currentConversationId} />
+  }
+
   return (
     <div className="app-layout">
       <Sidebar
         mode={sidebarMode}
-        onModeChange={setSidebarMode}
+        onModeChange={(mode) => {
+          setSidebarMode(mode)
+          setShowSettings(false)
+        }}
         onNewChat={handleNewChat}
+        onOpenSettings={() => setShowSettings(true)}
       />
-      {showKnowledgeBaseView ? (
-        <KnowledgeBaseView />
-      ) : (
-        <ChatPanel conversationId={currentConversationId} />
-      )}
+      {renderMainView()}
     </div>
   )
 }

@@ -20,6 +20,25 @@ def _is_packaged() -> bool:
     return getattr(sys, 'frozen', False)
 
 
+# 可通过前端配置页面修改的配置项及其默认值
+CONFIGURABLE_KEYS = {
+    "ollama_base_url": {"default": "http://127.0.0.1:11434", "type": "string", "label": "Ollama 服务地址", "group": "模型配置"},
+    "ollama_chat_model": {"default": "qwen3:14b", "type": "string", "label": "对话模型", "group": "模型配置"},
+    "ollama_summary_model": {"default": "qwen2.5:14b", "type": "string", "label": "摘要模型", "group": "模型配置"},
+    "ollama_embedding_model": {"default": "qwen3-embedding:4b", "type": "string", "label": "嵌入模型", "group": "模型配置"},
+    "chunk_size": {"default": 600, "type": "int", "label": "分片大小（字符数）", "group": "RAG 参数"},
+    "chunk_overlap": {"default": 100, "type": "int", "label": "分片重叠（字符数）", "group": "RAG 参数"},
+    "chunk_min_chars": {"default": 60, "type": "int", "label": "最小分片字符数", "group": "RAG 参数"},
+    "retrieval_top_k": {"default": 5, "type": "int", "label": "检索 Top-K", "group": "RAG 参数"},
+    "max_history_messages": {"default": 10, "type": "int", "label": "最大历史消息轮数", "group": "对话参数"},
+    "enable_query_rewrite": {"default": False, "type": "bool", "label": "启用查询改写", "group": "检索增强"},
+    "enable_reranking": {"default": False, "type": "bool", "label": "启用重排序", "group": "检索增强"},
+    "enable_hybrid_search": {"default": False, "type": "bool", "label": "启用混合检索（BM25+向量）", "group": "检索增强"},
+    "bm25_weight": {"default": 0.3, "type": "float", "label": "BM25 权重（0-1）", "group": "检索增强"},
+    "rerank_top_n": {"default": 15, "type": "int", "label": "重排序初筛数量", "group": "检索增强"},
+}
+
+
 class Settings(BaseSettings):
     # ===== 应用基础配置 =====
     app_name: str = "Atlas Knowledge Base"
@@ -43,15 +62,24 @@ class Settings(BaseSettings):
     # ===== Ollama 模型配置 =====
     ollama_base_url: str = "http://127.0.0.1:11434"        # Ollama 服务地址
     ollama_chat_model: str = "qwen3:14b"                   # 对话生成模型
+    ollama_summary_model: str = "qwen2.5:14b"              # 文档摘要模型
     ollama_embedding_model: str = "qwen3-embedding:4b"     # 文本向量化模型
 
     # ===== RAG 检索增强生成配置 =====
     chunk_size: int = 600          # 文档分块大小（字符数）
     chunk_overlap: int = 100       # 相邻分块的重叠字符数，保持上下文连贯性
+    chunk_min_chars: int = 60      # 分块后最小字符数（过短片段会合并）
     retrieval_top_k: int = 5       # 语义检索时返回最相似的 Top-K 个片段
 
     # ===== 对话配置 =====
     max_history_messages: int = 10  # 发送给模型的最大历史消息条数
+
+    # ===== 检索增强配置 =====
+    enable_query_rewrite: bool = False    # 启用查询改写（调用 LLM 改写用户问题提升召回率）
+    enable_reranking: bool = False        # 启用重排序（LLM 对初筛结果精排）
+    enable_hybrid_search: bool = False    # 启用混合检索（BM25 关键词 + 向量语义融合）
+    bm25_weight: float = 0.3             # 混合检索中 BM25 的权重（0-1）
+    rerank_top_n: int = 15               # 重排序初筛数量（粗筛后取 Top-N 送入重排序）
 
     @model_validator(mode='before')
     @classmethod
@@ -95,6 +123,22 @@ class Settings(BaseSettings):
         values['database_url'] = f"sqlite+aiosqlite:///{data_dir / 'sqlite' / 'atlas.db'}"
 
         return values
+
+    def apply_user_settings(self, user_settings: dict):
+        """将用户自定义配置应用到运行时 settings 单例。"""
+        for key, value in user_settings.items():
+            if key in CONFIGURABLE_KEYS and hasattr(self, key):
+                expected_type = CONFIGURABLE_KEYS[key]["type"]
+                if expected_type == "int":
+                    value = int(value)
+                elif expected_type == "float":
+                    value = float(value)
+                elif expected_type == "bool":
+                    if isinstance(value, str):
+                        value = value.lower() in ("true", "1", "yes")
+                    else:
+                        value = bool(value)
+                setattr(self, key, value)
 
     class Config:
         env_file = ".env"

@@ -54,7 +54,10 @@ class Document(Base):
     filename = Column(String, nullable=False)         # 原始文件名
     file_type = Column(String, nullable=False)        # 文件类型（pdf/docx/txt/markdown）
     file_size = Column(Integer)                       # 文件大小（字节）
+    file_hash = Column(String, nullable=True)          # 文件内容 SHA-256 哈希，同知识库内唯一
     chunk_count = Column(Integer, default=0)          # 分片数量
+    summary = Column(Text, nullable=True)              # 文档摘要（由 LLM 生成）
+    status = Column(String, default="completed")       # 文档状态：pending/processing/completed/failed
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)  # 所属知识库
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -68,7 +71,10 @@ class Document(Base):
             "filename": self.filename,
             "file_type": self.file_type,
             "file_size": self.file_size,
+            "file_hash": self.file_hash,
             "chunk_count": self.chunk_count,
+            "summary": self.summary,
+            "status": self.status,
             "knowledge_base_id": self.knowledge_base_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -104,6 +110,8 @@ class Message(Base):
     conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)  # 所属对话
     role = Column(String, nullable=False)             # 消息角色：'user'（用户）| 'assistant'（助手）
     content = Column(Text, nullable=False)            # 消息内容
+    reasoning = Column(Text, nullable=True)            # 模型思考过程（仅 assistant 消息）
+    references = Column(Text, nullable=True)            # 引用信息 JSON（仅 RAG 模式的 assistant 消息）
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 多对一关系：消息属于某个对话
@@ -111,10 +119,28 @@ class Message(Base):
 
     def to_dict(self):
         """转换为字典（用于 API 响应序列化）。"""
-        return {
+        result = {
             "id": self.id,
             "conversation_id": self.conversation_id,
             "role": self.role,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        if self.reasoning:
+            result["reasoning"] = self.reasoning
+        if self.references:
+            import json as _json
+            try:
+                result["references"] = _json.loads(self.references)
+            except (ValueError, TypeError):
+                result["references"] = []
+        return result
+
+
+class Setting(Base):
+    """配置表：键值对存储用户自定义配置项。"""
+    __tablename__ = "settings"
+
+    key = Column(String, primary_key=True)    # 配置项名称
+    value = Column(Text, nullable=False)       # 配置项值（JSON 字符串）
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

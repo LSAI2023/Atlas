@@ -52,6 +52,8 @@ export interface Document {
   file_type: string
   file_size: number
   chunk_count: number
+  summary?: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'  // 文档处理状态
   knowledge_base_id: string
   created_at: string
 }
@@ -64,6 +66,7 @@ export interface DocumentChunk {
     filename: string
     chunk_index: number
     total_chunks: number
+    type?: string
   }
 }
 
@@ -80,6 +83,16 @@ export interface Conversation {
   updated_at: string
 }
 
+/** 引用信息 */
+export interface Reference {
+  knowledge_base_id: string
+  knowledge_base_name: string
+  document_id: string
+  filename: string
+  chunk_index: number
+  distance: number
+}
+
 /** 消息 */
 export interface Message {
   id: string
@@ -87,6 +100,7 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   reasoning?: string       // 模型的思考过程（可选）
+  references?: Reference[] // 引用溯源信息（可选）
   created_at: string
 }
 
@@ -171,6 +185,18 @@ export const documentApi = {
   delete: async (id: string): Promise<void> => {
     await axios.delete(`${API_BASE}/documents/${id}`)
   },
+
+  /** 对失败的文档重新触发分片处理 */
+  reindex: async (id: string): Promise<{ message: string; document_id: string }> => {
+    const response = await axios.post(`${API_BASE}/documents/${id}/reindex`)
+    return response.data
+  },
+
+  /** 获取单个分片内容（按需加载，用于引用溯源） */
+  getChunk: async (documentId: string, chunkIndex: number): Promise<{ content: string; metadata: Record<string, unknown> }> => {
+    const response = await axios.get(`${API_BASE}/documents/${documentId}/chunks/${chunkIndex}`)
+    return response.data
+  },
 }
 
 // ===========================
@@ -226,7 +252,7 @@ export const chatApi = {
   sendMessage: (
     request: ChatRequest,
     onChunk: (content: string, reasoning: string) => void,
-    onDone: () => void,
+    onDone: (references?: Reference[]) => void,
     onError: (error: string) => void
   ): (() => void) => {
     const controller = new AbortController()
@@ -268,11 +294,11 @@ export const chatApi = {
                 if (data.error) {
                   onError(data.error)
                 } else if (data.done) {
-                  onDone()
+                  onDone(data.references)
                 } else {
                   onChunk(data.content || '', data.reasoning || '')
                 }
-              } catch (e) {
+              } catch {
                 // 忽略 JSON 解析错误（可能是不完整的数据）
               }
             }
@@ -291,6 +317,21 @@ export const chatApi = {
   },
 }
 
+/** 配置项信息 */
+export interface SettingItem {
+  current: string | number | boolean
+  default: string | number | boolean
+  type: 'string' | 'int' | 'float' | 'bool'
+  label: string
+  group: string
+  is_custom: boolean
+}
+
+/** 配置列表响应 */
+export interface SettingsResponse {
+  settings: Record<string, SettingItem>
+}
+
 // ===========================
 //  模型 API
 // ===========================
@@ -299,5 +340,26 @@ export const modelsApi = {
   list: async (): Promise<{ models: OllamaModel[]; default: string }> => {
     const response = await axios.get(`${API_BASE}/chat/models`)
     return response.data
+  },
+}
+
+// ===========================
+//  配置 API
+// ===========================
+export const settingsApi = {
+  /** 获取当前配置及默认值 */
+  get: async (): Promise<SettingsResponse> => {
+    const response = await axios.get(`${API_BASE}/settings`)
+    return response.data
+  },
+
+  /** 更新配置项 */
+  update: async (settings: Record<string, string | number | boolean>): Promise<void> => {
+    await axios.put(`${API_BASE}/settings`, { settings })
+  },
+
+  /** 重置配置项为默认值 */
+  reset: async (keys?: string[]): Promise<void> => {
+    await axios.post(`${API_BASE}/settings/reset`, { keys: keys || null })
   },
 }

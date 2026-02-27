@@ -11,11 +11,13 @@ dependencies = [
     "chromadb>=0.4.22",
     "python-multipart>=0.0.6",
     "sqlalchemy>=2.0.0",
+    "greenlet>=3.0.0",
     "aiosqlite>=0.19.0",
     "pydantic-settings>=2.0.0",
     "pymupdf>=1.23.0",
     "python-docx>=1.1.0",
-    "chardet>=5.2.0",
+    "mammoth>=1.8.0",
+    "chardet>=5.2.0,<6",
     "langchain-text-splitters>=0.0.1",
 ]
 
