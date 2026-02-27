@@ -8,7 +8,7 @@ Atlas 是一个基于 RAG（检索增强生成）的本地知识库智能问答�
 
 - **前端**：Electron 28 + React 18 + TypeScript + Ant Design 6 + Zustand（状态管理）
 - **后端**：Python 3.9+ + FastAPI（异步）+ SQLAlchemy + aiosqlite
-- **大模型**：Ollama（默认 qwen3:14b 对话 / qwen3-embedding:4b 嵌入）
+- **大模型**：Ollama（默认 qwen3:14b 对话 / qwen2.5:14b 摘要 / qwen3-embedding:4b 嵌入）
 - **向量库**：ChromaDB（余弦相似度）
 - **关系库**：SQLite
 - **混合检索**：rank_bm25 + jieba（中文分词）
@@ -68,6 +68,7 @@ npm run electron:dev             # Electron 开发模式
 
 ### 配置管理
 `backend/app/config.py` 定义了 `CONFIGURABLE_KEYS` 字典和 `Settings` 类（pydantic-settings）。用户自定义配置持久化到 SQLite 的 `settings` 表，修改即时生效无需重启。前端配置页面在 `SettingsPage.tsx`。
+当前关键配置项包括：`ollama_chat_model`、`ollama_summary_model`、`ollama_embedding_model`、`chunk_size`、`chunk_overlap`、`chunk_min_chars`。
 
 ### RAG 检索管线（backend/app/core/rag.py）
 1. 查询改写（可选，LLM 将模糊问题改写为精确检索语句）
@@ -81,6 +82,7 @@ npm run electron:dev             # Electron 开发模式
 - 上传即时返回（status=pending），不阻塞
 - 分片和向量化通过 `asyncio.create_task` 后台异步执行，使用独立 DB 会话
 - 基于 SHA-256 哈希的同知识库内文件去重
+- DOCX 解析主流程为 `mammoth -> markdown`，失败时回退 `python-docx`
 - 失败文档可通过 `/api/documents/{id}/reindex` 手动重试
 
 ### SSE 流式通信（backend/app/api/chat.py）
@@ -97,7 +99,8 @@ npm run electron:dev             # Electron 开发模式
 - 后端全面使用 async/await（aiosqlite、async SQLAlchemy）
 - 前端 SSE 流式使用 Fetch API（非 axios），见 `chatApi.sendMessage`
 - 文档状态生命周期：pending → processing → completed | failed
-- 引用信息以轻量 JSON 索引存储在消息中（不含原文），点击时按需从 ChromaDB 加载
+- 引用信息以轻量 JSON 索引存储在消息中（不含原文），点击时按需从 ChromaDB 加载（再次点击同一引用可收起）
+- `GET /api/documents/{id}/chunks/{index}` 支持 `index=-1` 查询摘要分片
 - 打包模式通过 `sys.frozen`（PyInstaller）检测，数据目录切换到 `~/Library/Application Support/Atlas/data/`
 
 ## 测试验证
