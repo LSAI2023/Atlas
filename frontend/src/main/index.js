@@ -56,6 +56,8 @@ function findAvailablePort() {
 async function startBackend() {
   backendPort = await findAvailablePort()
   console.log(`[Atlas] 后端端口: ${backendPort}`)
+  const backendDataDir = path.join(app.getPath('userData'), 'data')
+  console.log(`[Atlas] 后端数据目录: ${backendDataDir}`)
 
   // PyInstaller 打包产物位于 Resources/backend/atlas-backend/atlas-backend
   const backendPath = path.join(
@@ -72,6 +74,7 @@ async function startBackend() {
       ...process.env,
       ATLAS_PORT: String(backendPort),
       ATLAS_HOST: '127.0.0.1',
+      ATLAS_DATA_DIR: backendDataDir,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

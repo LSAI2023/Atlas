@@ -70,6 +70,7 @@ a = Analysis(
         'sqlalchemy',
         'sqlalchemy.ext.asyncio',
         'sqlalchemy.dialects.sqlite',
+        'greenlet',
         'aiosqlite',
 
         # ChromaDB 外部依赖
