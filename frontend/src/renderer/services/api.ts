@@ -296,7 +296,7 @@ export const chatApi = {
                 } else {
                   onChunk(data.content || '', data.reasoning || '')
                 }
-              } catch (e) {
+              } catch {
                 // 忽略 JSON 解析错误（可能是不完整的数据）
               }
             }

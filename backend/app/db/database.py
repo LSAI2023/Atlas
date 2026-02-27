@@ -41,15 +41,22 @@ _MIGRATIONS = [
 ]
 
 
+def _quote_ident(identifier: str) -> str:
+    """SQLite 标识符转义，避免保留字/特殊字符导致 SQL 语法错误。"""
+    return '"' + identifier.replace('"', '""') + '"'
+
+
 async def _run_migrations(conn):
     """检查并执行增量迁移，为已有表添加新列。"""
     for table_name, column_name, column_type in _MIGRATIONS:
+        quoted_table = _quote_ident(table_name)
+        quoted_column = _quote_ident(column_name)
         # 检查列是否已存在
-        result = await conn.execute(text(f"PRAGMA table_info({table_name})"))
+        result = await conn.execute(text(f"PRAGMA table_info({quoted_table})"))
         columns = [row[1] for row in result]
         if column_name not in columns:
             await conn.execute(
-                text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                text(f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {column_type}")
             )
 
 
